@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parla</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  
+  <div class="main">
+    <!-- Container A: Register (Vista no autenticado) -->
+    <div class="container a-container" id="a-container">
+      <div class="form">
+        <div class="form__mascot">
+          <img src="../icons/chiguiro.png" alt="Parla">
+        </div>
+        <h2 class="form__title">Parla</h2>
+        <p class="form__subtitle">Aprende idiomas mientras navegas</p>
+        
+        <!-- Toggle Extension -->
+        <div class="toggle-section">
+          <span class="toggle-text">Extensión</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="extension-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-status" id="toggle-status">Activa</span>
+        </div>
+
+        <!-- Benefits List -->
+        <div class="benefits-compact">
+          <div class="benefit-item">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>Vocabulario sincronizado</span>
+          </div>
+          <div class="benefit-item">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>Historial de traducciones</span>
+          </div>
+          <div class="benefit-item">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>Practica con flashcards</span>
+          </div>
+        </div>
+
+        <!-- Social Auth -->
+        <button class="form__button" id="btn-google-register">
+          <i class="bi bi-google"></i>
+          Continuar con Google
+        </button>
+      </div>
+    </div>
+
+    <!-- Container B: Main View (Vista autenticado) -->
+    <div class="container b-container" id="b-container">
+      <div class="main-content">
+        <!-- Header -->
+        <div class="main-header">
+          <div class="header-info">
+            <h2 class="header-title">Parla</h2>
+            <label class="toggle-switch-mini">
+              <input type="checkbox" id="extension-toggle-main" checked>
+              <span class="toggle-slider-small"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" data-tab="saved">
+            <i class="bi bi-bookmark-fill"></i>
+            <span>Guardadas</span>
+            <span class="badge" id="saved-count">0</span>
+          </button>
+          <button class="tab" data-tab="settings">
+            <i class="bi bi-gear-fill"></i>
+            <span>Ajustes</span>
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content-wrapper">
+          <!-- Saved Tab -->
+          <div class="tab-content active" id="saved-tab">
+            <div class="search-box">
+              <i class="bi bi-search"></i>
+              <input type="text" id="search-input" placeholder="Buscar frases...">
+            </div>
+
+            <div id="phrases-container">
+              <div class="empty-state">
+                <i class="bi bi-bookmark"></i>
+                <h3>No hay frases guardadas</h3>
+                <p>Selecciona texto en cualquier página y guárdalo para empezar.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Tab -->
+          <div class="tab-content" id="settings-tab">
+            <div class="settings-scroll">
+              <div class="settings-section">
+                <h3><i class="bi bi-translate"></i> Idioma</h3>
+                <select class="select-input" id="target-language">
+                  <option value="es">🇪🇸 Español</option>
+                  <option value="en">🇺🇸 English</option>
+                  <option value="fr">🇫🇷 Français</option>
+                  <option value="de">🇩🇪 Deutsch</option>
+                </select>
+              </div>
+
+              <div class="settings-section">
+                <h3><i class="bi bi-sliders"></i> Funciones</h3>
+                <label class="switch-label">
+                  <input type="checkbox" class="switch-input" id="auto-pause" checked>
+                  <span class="switch-slider-setting"></span>
+                  <span>Auto-pausar video</span>
+                </label>
+                <label class="switch-label">
+                  <input type="checkbox" class="switch-input" id="show-pronunciation" checked>
+                  <span class="switch-slider-setting"></span>
+                  <span>Mostrar pronunciación</span>
+                </label>
+              </div>
+
+              <div class="settings-section">
+                <h3><i class="bi bi-person-circle"></i> Cuenta</h3>
+                <div class="account-info">
+                  <div class="account-avatar">
+                    <i class="bi bi-person-fill"></i>
+                  </div>
+                  <div class="account-details">
+                    <p class="account-name" id="user-name">Usuario</p>
+                    <p class="account-email" id="user-email">demo@parla.com</p>
+                  </div>
+                </div>
+                <button class="btn-logout" id="btn-logout">
+                  <i class="bi bi-box-arrow-right"></i>
+                  Cerrar sesión
+                </button>
+              </div>
+
+              <div class="settings-footer">
+                <img src="../icons/chiguiro.png" alt="Parla" class="footer-mascot">
+                <p class="footer-version">Parla v1.0.0</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Switch Panel -->
+    <div class="switch" id="switch-cnt">
+      <div class="switch__circle"></div>
+      <div class="switch__circle switch__circle--t"></div>
+      
+      <div class="switch__container" id="switch-c1">
+        <div class="switch__mascot">
+          <img src="../icons/chiguiro.png" alt="Parla">
+        </div>
+        <h2 class="switch__title">¡Bienvenido!</h2>
+        <p class="switch__description">
+          Inicia sesión para acceder a todas tus frases guardadas y configuraciones
+        </p>
+       
+      </div>
+
+      <div class="switch__container is-hidden" id="switch-c2">
+        <div class="switch__mascot">
+          <img src="../icons/chiguiro.png" alt="Parla">
+        </div>
+        <h2 class="switch__title">¡Hola!</h2>
+        <p class="switch__description">
+          Regístrate para guardar tus traducciones y sincronizar tu progreso
+        </p>
+        <button class="switch__button switch-btn">
+          REGISTRARSE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "PARLA",
+  "version": "1.0.0",
+  "description": "Extension to enhance speech analysis and control features for XLR8.",
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "utils/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content.js", "content/video-handler.js"],
+      "css": ["content/content.css"]
+    }
+  ],
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"]
+}
