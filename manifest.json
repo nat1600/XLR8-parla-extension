@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "PARLA",
+  "name": "Parla - Aprende idiomas mientras navegas",
   "version": "1.0.0",
-  "description": "Extension to enhance speech analysis and control features for XLR8.",
+  "description": "Traduce y guarda frases de YouTube, Netflix, PDFs y páginas web. Aprende idiomas de forma natural mientras navegas.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -10,7 +16,8 @@
       "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_title": "Parla"
   },
   "background": {
     "service_worker": "utils/background.js"
@@ -18,10 +25,12 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/content.js", "content/video-handler.js"],
-      "css": ["content/content.css"]
+      "js": ["content/content.js"],
+      "run_at": "document_end"
     }
   ],
-  "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["<all_urls>"]
+  "permissions": [
+    "storage",
+    "activeTab"
+  ]
 }
