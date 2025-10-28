@@ -1,8 +1,8 @@
 // ===========================
 // PARLA CONTENT SCRIPT
-// Handles text selection and translation on web pages
 // ===========================
-
+//
+// TODO : all this code is generating we have to improve it
 let isExtensionActive = true;
 let floatingPopup = null;
 let selectedText = '';
@@ -16,13 +16,13 @@ let autoPauseEnabled = true;
 // INITIALIZATION
 // ===========================
 function init() {
-  console.log('🎯 Parla: Initializing content script...');
+   ('🎯 Parla: Initializing content script...');
   loadSettings();
   detectPageType();
   injectStyles();
   setupEventListeners();
   
-  console.log('✅ Parla extension initialized successfully');
+  console.log('Parla extension initialized successfully');
 }
 
 // ===========================
@@ -34,9 +34,9 @@ async function loadSettings() {
     isExtensionActive = result.parla_extension_active !== false;
     autoPauseEnabled = result.parla_auto_pause !== false;
     
-    console.log('📋 Settings loaded:', { isExtensionActive, autoPauseEnabled });
+    console.log('Settings loaded:', { isExtensionActive, autoPauseEnabled });
   } catch (error) {
-    console.error('❌ Error loading settings:', error);
+    console.error('Error loading settings:', error);
     // Fallback to defaults
     isExtensionActive = true;
     autoPauseEnabled = true;
@@ -45,11 +45,11 @@ async function loadSettings() {
 
 // Listen for settings changes from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('📨 Message received:', request);
+  console.log(' Message received:', request);
   
   if (request.action === 'toggleExtension') {
     isExtensionActive = request.active;
-    console.log('🔄 Extension toggled:', isExtensionActive);
+    console.log(' Extension toggled:', isExtensionActive);
     if (!isExtensionActive) {
       hideFloatingPopup();
     }
@@ -71,7 +71,7 @@ function detectPageType() {
   isNetflix = url.includes('netflix.com/watch');
   isPDF = url.includes('.pdf') || document.contentType === 'application/pdf';
   
-  console.log('🌐 Page type detected:', { isYouTube, isNetflix, isPDF });
+  console.log('age type detected:', { isYouTube, isNetflix, isPDF });
   
   if (isYouTube) {
     setupYouTubeIntegration();
@@ -86,7 +86,7 @@ function detectPageType() {
 // YOUTUBE INTEGRATION
 // ===========================
 function setupYouTubeIntegration() {
-  console.log('🎬 YouTube detected - Setting up subtitle detection');
+  console.log(' YouTube detected - Setting up subtitle detection');
   
   // Wait for video player to load
   let attempts = 0;
@@ -98,18 +98,18 @@ function setupYouTubeIntegration() {
     const subtitlesContainer = document.querySelector('.ytp-caption-segment');
     
     if (videoElement && subtitlesContainer) {
-      console.log('✅ YouTube video and subtitles found');
+      console.log('YouTube video and subtitles found');
       clearInterval(checkVideo);
       attachSubtitleListeners();
     } else if (attempts >= maxAttempts) {
-      console.log('⏱️ YouTube check timeout - video or subtitles not found');
+      console.log(' YouTube check timeout - video or subtitles not found');
       clearInterval(checkVideo);
     }
   }, 1000);
 }
 
 function attachSubtitleListeners() {
-  console.log('👂 Attaching subtitle listeners...');
+  console.log(' Attaching subtitle listeners...');
   
   // Observer for subtitle changes
   const subtitlesObserver = new MutationObserver(() => {
@@ -128,7 +128,7 @@ function attachSubtitleListeners() {
         // Click to select
         subtitle.addEventListener('mouseup', handleSubtitleClick);
         
-        console.log('🎯 Subtitle listener attached');
+        console.log(' Subtitle listener attached');
       }
     });
   });
@@ -139,19 +139,19 @@ function attachSubtitleListeners() {
       childList: true,
       subtree: true
     });
-    console.log('✅ Subtitle observer started');
+    console.log(' Subtitle observer started');
   }
 }
 
 function handleSubtitleHover(e) {
   if (!isExtensionActive || !autoPauseEnabled) return;
   
-  console.log('🖱️ Subtitle hover detected');
+  console.log(' Subtitle hover detected');
   
   if (videoElement && !videoElement.paused) {
     videoElement.pause();
     e.currentTarget.setAttribute('data-parla-paused', 'true');
-    console.log('⏸️ Video paused');
+    console.log(' Video paused');
   }
 }
 
@@ -162,7 +162,7 @@ function handleSubtitleLeave(e) {
     setTimeout(() => {
       if (videoElement) {
         videoElement.play();
-        console.log('▶️ Video resumed');
+        console.log(' Video resumed');
       }
       e.currentTarget.removeAttribute('data-parla-paused');
     }, 300);
@@ -175,7 +175,7 @@ function handleSubtitleClick(e) {
   const selection = window.getSelection();
   const text = selection.toString().trim();
   
-  console.log('🖱️ Subtitle clicked, text:', text);
+  console.log(' Subtitle clicked, text:', text);
   
   if (text.length > 0) {
     selectedText = text;
@@ -187,7 +187,7 @@ function handleSubtitleClick(e) {
 // NETFLIX INTEGRATION
 // ===========================
 function setupNetflixIntegration() {
-  console.log('🎬 Netflix detected - Setting up subtitle detection');
+  console.log('Netflix detected - Setting up subtitle detection');
   
   let attempts = 0;
   const maxAttempts = 30;
@@ -198,18 +198,18 @@ function setupNetflixIntegration() {
     const subtitlesContainer = document.querySelector('.player-timedtext');
     
     if (videoElement && subtitlesContainer) {
-      console.log('✅ Netflix video and subtitles found');
+      console.log(' Netflix video and subtitles found');
       clearInterval(checkVideo);
       attachNetflixSubtitleListeners();
     } else if (attempts >= maxAttempts) {
-      console.log('⏱️ Netflix check timeout');
+      console.log(' Netflix check timeout');
       clearInterval(checkVideo);
     }
   }, 1000);
 }
 
 function attachNetflixSubtitleListeners() {
-  console.log('👂 Attaching Netflix subtitle listeners...');
+  console.log(' Attaching Netflix subtitle listeners...');
   
   const subtitlesObserver = new MutationObserver(() => {
     const subtitleElements = document.querySelectorAll('.player-timedtext-text-container span');
@@ -224,7 +224,7 @@ function attachNetflixSubtitleListeners() {
         subtitle.addEventListener('mouseleave', handleSubtitleLeave);
         subtitle.addEventListener('mouseup', handleSubtitleClick);
         
-        console.log('🎯 Netflix subtitle listener attached');
+        console.log('Netflix subtitle listener attached');
       }
     });
   });
@@ -235,7 +235,7 @@ function attachNetflixSubtitleListeners() {
       childList: true,
       subtree: true
     });
-    console.log('✅ Netflix subtitle observer started');
+    console.log(' Netflix subtitle observer started');
   }
 }
 
@@ -243,7 +243,7 @@ function attachNetflixSubtitleListeners() {
 // PDF INTEGRATION
 // ===========================
 function setupPDFIntegration() {
-  console.log('📄 PDF detected - Enhanced text selection enabled');
+  console.log(' PDF detected - Enhanced text selection enabled');
 }
 
 // ===========================
@@ -253,31 +253,31 @@ function setupEventListeners() {
   document.addEventListener('mouseup', handleTextSelection);
   document.addEventListener('keydown', handleKeyDown);
   
-  console.log('✅ Event listeners attached');
+  console.log(' Event listeners attached');
 }
 
 function handleTextSelection(e) {
   if (!isExtensionActive) {
-    console.log('⚠️ Extension is inactive');
+    console.log('Extension is inactive');
     return;
   }
   
   // Don't show popup if clicking on the popup itself
   if (floatingPopup && floatingPopup.contains(e.target)) {
-    console.log('⚠️ Clicked on popup itself');
+    console.log(' Clicked on popup itself');
     return;
   }
   
   // Don't interfere with YouTube/Netflix subtitles (handled separately)
   if ((isYouTube || isNetflix) && e.target.closest('.ytp-caption-segment, .player-timedtext')) {
-    console.log('⚠️ Subtitle click handled separately');
+    console.log(' Subtitle click handled separately');
     return;
   }
   
   const selection = window.getSelection();
   const text = selection.toString().trim();
   
-  console.log('📝 Text selected:', text);
+  console.log(' Text selected:', text);
   
   if (text.length > 0) {
     selectedText = text;
@@ -289,7 +289,7 @@ function handleTextSelection(e) {
 
 function handleKeyDown(e) {
   if (e.key === 'Escape') {
-    console.log('⌨️ Escape pressed - hiding popup');
+    console.log(' Escape pressed - hiding popup');
     hideFloatingPopup();
   }
 }
@@ -298,7 +298,7 @@ function handleKeyDown(e) {
 // FLOATING POPUP
 // ===========================
 function showFloatingPopup(x, y) {
-  console.log('🎨 Showing floating popup at', { x, y });
+  console.log(' Showing floating popup at', { x, y });
   
   // Remove existing popup
   hideFloatingPopup();
@@ -362,7 +362,7 @@ function showFloatingPopup(x, y) {
   // Translate text
   translateText(selectedText);
   
-  console.log('✅ Popup displayed');
+  console.log(' Popup displayed');
 }
 
 function positionPopup(popup, x, y) {
@@ -408,14 +408,14 @@ function hideFloatingPopup() {
 async function translateText(text) {
   const translationContainer = document.getElementById('parla-translation');
   
-  console.log('🌐 Translating text:', text);
+  console.log(' Translating text:', text);
   
   try {
     // Get target language from storage
     const settings = await chrome.storage.local.get(['parla_target_language']);
     const targetLanguage = settings.parla_target_language || 'es';
     
-    console.log('🎯 Target language:', targetLanguage);
+    console.log('arget language:', targetLanguage);
     
     // Simulate API call - Replace with actual translation API
     await new Promise(resolve => setTimeout(resolve, 800));
@@ -430,9 +430,9 @@ async function translateText(text) {
       </div>
     `;
     
-    console.log('✅ Translation completed:', translation);
+    console.log('Translation completed:', translation);
   } catch (error) {
-    console.error('❌ Translation error:', error);
+    console.error('Translation error:', error);
     translationContainer.innerHTML = `
       <div class="parla-error">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -465,7 +465,7 @@ async function savePhrase() {
   const translationText = document.querySelector('.parla-translation-text');
   if (!translationText) return;
   
-  console.log('💾 Saving phrase...');
+  console.log('Saving phrase...');
   
   const phrase = {
     id: Date.now().toString(),
@@ -490,7 +490,7 @@ async function savePhrase() {
       phrase: phrase 
     }).catch(() => console.log('Popup not open'));
     
-    console.log('✅ Phrase saved:', phrase);
+    console.log('Phrase saved:', phrase);
     
     // Show success feedback
     showNotification('✓ Frase guardada');
@@ -502,7 +502,7 @@ async function savePhrase() {
 }
 
 function speakText() {
-  console.log('🔊 Speaking text:', selectedText);
+  console.log(' Speaking text:', selectedText);
   
   if ('speechSynthesis' in window) {
     const utterance = new SpeechSynthesisUtterance(selectedText);
@@ -512,7 +512,7 @@ function speakText() {
     
     showNotification('🔊 Reproduciendo...');
   } else {
-    console.log('❌ Speech synthesis not available');
+    console.log(' Speech synthesis not available');
     showNotification('Text-to-speech no disponible');
   }
 }
@@ -528,7 +528,7 @@ function getContext() {
 // NOTIFICATIONS
 // ===========================
 function showNotification(message) {
-  console.log('📢 Showing notification:', message);
+  console.log('Showing notification:', message);
   
   const notification = document.createElement('div');
   notification.className = 'parla-notification';
@@ -795,7 +795,7 @@ function injectStyles() {
   `;
   
   document.head.appendChild(style);
-  console.log('✅ Styles injected');
+  console.log(' Styles injected');
 }
 
 // ===========================
