@@ -80,8 +80,8 @@ body {
 }
 
 .form__mascot {
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   margin: 10px 0;
   background: linear-gradient(135deg, var(--accent) 0%, var(--secondary) 100%);
   border-radius: 50%;
@@ -100,8 +100,8 @@ body {
 }
 
 .form__mascot img {
-  width: 70%;
-  height: 70%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
@@ -688,8 +688,8 @@ input:checked + .toggle-slider-small::before {
 }
 
 .switch__mascot {
-  width: 60px;
-  height: 60px;
+  width: 100px;
+  height: 100px;
   margin-bottom: 15px;
   background: rgba(255, 255, 255, 0.15);
   border-radius: 50%;
@@ -701,8 +701,8 @@ input:checked + .toggle-slider-small::before {
 }
 
 .switch__mascot img {
-  width: 65%;
-  height: 65%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
