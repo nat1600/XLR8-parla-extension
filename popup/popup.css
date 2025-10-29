@@ -925,3 +925,20 @@ input:checked + .toggle-slider-small::before {
   background: var(--accent);
   border-radius: 4px;
 }
+
+
+.tutorial-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f0f0;
+  border-radius: 50%;
+}
+
+.tutorial-icon img {
+  width: 200px;
+  height: 80px;
+  object-fit: contain;
+}
