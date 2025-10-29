@@ -176,6 +176,13 @@ function handleSubtitleClick(e) {
   const text = selection.toString().trim();
   
   console.log(' Subtitle clicked, text:', text);
+
+  if (floatingPopup) {
+    console.log('Removing previous popup:', text);
+    floatingPopup.remove();
+    floatingPopup = null;
+  }
+
   
   if (text.length > 0) {
     selectedText = text;
@@ -250,7 +257,18 @@ function setupPDFIntegration() {
 // GENERAL TEXT SELECTION
 // ===========================
 function setupEventListeners() {
-  document.addEventListener('mouseup', handleTextSelection);
+  //document.addEventListener('mouseup', handleTextSelection);
+  
+  let popupTimeout;
+
+  document.addEventListener('mouseup', (e) => {
+    clearTimeout(popupTimeout);                     //Clean previous timers
+    popupTimeout = setTimeout(() => {
+      handleTextSelection(e);
+    }, 150);  // 150 miliseconds delay
+  });
+
+
   document.addEventListener('keydown', handleKeyDown);
   
   console.log(' Event listeners attached');
@@ -355,9 +373,54 @@ function showFloatingPopup(x, y) {
   }, 10);
   
   // Setup event listeners
-  document.getElementById('parla-close').addEventListener('click', hideFloatingPopup);
-  document.getElementById('parla-save').addEventListener('click', savePhrase);
-  document.getElementById('parla-speak').addEventListener('click', speakText);
+  // Avoid propagation:
+  floatingPopup.addEventListener('mousedown', (e) => e.stopPropagation());
+  floatingPopup.addEventListener('mouseup', (e) => e.stopPropagation());
+
+  // Close pop up
+  document.getElementById('parla-close').addEventListener('click', (e) => {
+    e.stopPropagation();  
+    hideFloatingPopup();
+  });
+
+  // Save phrase with delay
+  const saveButton = document.getElementById('parla-save');
+  saveButton.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    
+    // Avoid double clic
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
+    saveButton.style.opacity = '0.6';
+
+    await savePhrase();
+
+    // Activate after 1 second
+    setTimeout(() => {
+      saveButton.disabled = false;
+      saveButton.style.opacity = '1';
+    }, 1000);
+  });
+
+  // Speak text with delay
+  const speakButton = document.getElementById('parla-speak');
+  speakButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    // Avoid double clic
+    if (speakButton.disabled) return;
+    speakButton.disabled = true;
+    speakButton.style.opacity = '0.6';
+
+    speakText();
+
+    // Activate after 1 second
+    setTimeout(() => {
+      speakButton.disabled = false;
+      speakButton.style.opacity = '1.5';
+    }, 1500);
+  });
+
   
   // Translate text
   translateText(selectedText);
@@ -815,3 +878,11 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+const observer = new MutationObserver(() => {
+  if (floatingPopup && !document.contains(floatingPopup)) {
+    console.warn("⚠️ Popup eliminado por el sitio, recreando...");
+    floatingPopup = null;
+  }
+});
+observer.observe(document.body, { childList: true, subtree: true });

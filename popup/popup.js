@@ -27,16 +27,21 @@ const btnGoogleRegister = document.getElementById('btn-google-register');
 const btnLogout = document.getElementById('btn-logout');
 const switchBtns = document.querySelectorAll('.switch-btn');
 
-// Tabs
-const tabs = document.querySelectorAll('.tab');
-const tabContents = document.querySelectorAll('.tab-content');
+// Mi Espacio Button
+const btnMySpace = document.getElementById('btn-my-space');
+
+// Collapsible Tabs
+const tabTriggers = document.querySelectorAll('.tab-trigger');
+const savedCollapse = document.getElementById('saved-collapse');
+const settingsCollapse = document.getElementById('settings-collapse');
 
 // Search
 const searchInput = document.getElementById('search-input');
 const phrasesContainer = document.getElementById('phrases-container');
 
 // Settings
-const targetLanguageSelect = document.getElementById('target-language');
+// This section is getting commented in case we need to revert:
+// const targetLanguageSelect = document.getElementById('target-language');
 const autoPauseCheckbox = document.getElementById('auto-pause');
 const showPronunciationCheckbox = document.getElementById('show-pronunciation');
 
@@ -104,7 +109,10 @@ function updateUI() {
     aContainer.classList.add('is-hidden');
     bContainer.classList.remove('is-hidden');
     switchContainer.classList.add('is-hidden');
-    
+
+    bContainer.classList.add('is-txl');  
+    bContainer.style.width = '400px';   
+
     // Update user info
     userName.textContent = currentUser.name;
     userEmail.textContent = currentUser.email;
@@ -152,6 +160,40 @@ function toggleExtension(active) {
   // });
   
   showNotification(active ? 'Extensión activada' : 'Extensión desactivada');
+}
+
+// ===========================
+// MI ESPACIO BUTTON
+// ===========================
+function handleMySpaceClick() {
+  // Redirect to external website
+  const url = 'https://www.nytimes.com/live/2025/10/27/weather/hurricane-melissa-jamaica';
+  window.open(url, '_blank');
+}
+
+// ===========================
+// COLLAPSIBLE TABS
+// ===========================
+function handleTabToggle(tabName) {
+  const trigger = document.querySelector(`[data-tab="${tabName}"]`);
+  const collapse = document.getElementById(`${tabName}-collapse`);
+  
+  // Toggle active state
+  const isActive = trigger.classList.contains('active');
+  
+  if (isActive) {
+    // Close this tab
+    trigger.classList.remove('active');
+    collapse.classList.remove('active');
+  } else {
+    // Close all other tabs
+    tabTriggers.forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-collapse').forEach(c => c.classList.remove('active'));
+    
+    // Open this tab
+    trigger.classList.add('active');
+    collapse.classList.add('active');
+  }
 }
 
 // ===========================
@@ -267,13 +309,15 @@ function renderPhrases(filter = '') {
 // ===========================
 function loadSettings() {
   const settings = {
-    targetLanguage: localStorage.getItem('parla_target_language') || 'es',
+    //This section is getting commented in case we need to revert:
+    // targetLanguage: localStorage.getItem('parla_target_language') || 'es',
     autoPause: localStorage.getItem('parla_auto_pause') !== 'false',
     showPronunciation: localStorage.getItem('parla_show_pronunciation') !== 'false',
     extensionActive: localStorage.getItem('parla_extension_active') !== 'false'
   };
 
-  targetLanguageSelect.value = settings.targetLanguage;
+  // This section is getting commented in case we need to revert:
+  // targetLanguageSelect.value = settings.targetLanguage;
   autoPauseCheckbox.checked = settings.autoPause;
   showPronunciationCheckbox.checked = settings.showPronunciation;
   extensionToggle.checked = settings.extensionActive;
@@ -284,7 +328,8 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  localStorage.setItem('parla_target_language', targetLanguageSelect.value);
+  // This section is getting commented in case we need to revert:
+  // localStorage.setItem('parla_target_language', targetLanguageSelect.value);
   localStorage.setItem('parla_auto_pause', autoPauseCheckbox.checked);
   localStorage.setItem('parla_show_pronunciation', showPronunciationCheckbox.checked);
   
@@ -298,6 +343,19 @@ function initializeEventListeners() {
   // Auth buttons
   btnGoogleRegister.addEventListener('click', handleGoogleAuth);
   btnLogout.addEventListener('click', handleLogout);
+
+  // Mi Espacio button
+  if (btnMySpace) {
+    btnMySpace.addEventListener('click', handleMySpaceClick);
+  }
+
+  // Collapsible tab triggers
+  tabTriggers.forEach(trigger => {
+    trigger.addEventListener('click', () => {
+      const tabName = trigger.dataset.tab;
+      handleTabToggle(tabName);
+    });
+  });
 
   // Switch buttons (login/register toggle)
   switchBtns.forEach(btn => {
@@ -324,28 +382,14 @@ function initializeEventListeners() {
     });
   }
 
-  // Tabs
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const targetTab = tab.dataset.tab;
-      
-      // Remove active class from all tabs
-      tabs.forEach(t => t.classList.remove('active'));
-      tabContents.forEach(tc => tc.classList.remove('active'));
-      
-      // Add active class to clicked tab
-      tab.classList.add('active');
-      document.getElementById(`${targetTab}-tab`).classList.add('active');
-    });
-  });
-
   // Search
   searchInput.addEventListener('input', (e) => {
     renderPhrases(e.target.value);
   });
 
   // Settings
-  targetLanguageSelect.addEventListener('change', saveSettings);
+  // This section is getting commented in case we need to revert:
+  // targetLanguageSelect.addEventListener('change', saveSettings);
   autoPauseCheckbox.addEventListener('change', saveSettings);
   showPronunciationCheckbox.addEventListener('change', saveSettings);
 }

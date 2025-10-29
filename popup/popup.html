@@ -53,10 +53,11 @@
       </div>
     </div>
 
-    <!-- Container B: Main View (Vista autenticated) -->
+    <!-- Container B: Main View (Vista autenticada) -->
+    <!-- STRUCTURE: My Space button, tutorial area, and collapsible tabs at bottom -->
     <div class="container b-container" id="b-container">
       <div class="main-content">
-        <!-- Header -->
+        <!-- Header with "Mi espacio" button -->
         <div class="main-header">
           <div class="header-info">
             <h2 class="header-title">Parla</h2>
@@ -67,84 +68,129 @@
           </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-          <button class="tab active" data-tab="saved">
-            <i class="bi bi-bookmark-fill"></i>
-            <span>Guardadas</span>
-            <span class="badge" id="saved-count">0</span>
-          </button>
-          <button class="tab" data-tab="settings">
-            <i class="bi bi-gear-fill"></i>
-            <span>Ajustes</span>
-          </button>
+        <!-- Mi Espacio Button -->
+        <button class="btn-my-space" id="btn-my-space">
+          <i class="bi bi-house-door-fill"></i>
+          <span>Mi espacio</span>
+          <i class="bi bi-box-arrow-up-right"></i>
+        </button>
+
+        <!-- Tutorial/Usage Area -->
+        <div class="tutorial-area">
+          <div class="tutorial-content">
+            <div class="tutorial-icon">
+              <i class="bi bi-lightbulb-fill"></i>
+            </div>
+            <h3>¿Cómo usar Parla?</h3>
+            <div class="tutorial-steps">
+              <div class="step">
+                <span class="step-number">1</span>
+                <p>Selecciona cualquier texto en una página web</p>
+              </div>
+              <div class="step">
+                <span class="step-number">2</span>
+                <p>Verás la traducción instantánea</p>
+              </div>
+              <div class="step">
+                <span class="step-number">3</span>
+                <p>Guarda las frases que quieras recordar</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Tab Content -->
-        <div class="tab-content-wrapper">
-          <!-- Saved Tab -->
-          <div class="tab-content active" id="saved-tab">
-            <div class="search-box">
-              <i class="bi bi-search"></i>
-              <input type="text" id="search-input" placeholder="Buscar frases...">
-            </div>
-
-            <div id="phrases-container">
-              <div class="empty-state">
-                <i class="bi bi-bookmark"></i>
-                <h3>No hay frases guardadas</h3>
-                <p>Selecciona texto en cualquier página y guárdalo para empezar.</p>
+        <!-- Bottom Collapsible Tabs -->
+        <div class="bottom-tabs">
+          <!-- Guardadas Tab -->
+          <div class="collapsible-tab">
+            <button class="tab-trigger" data-tab="saved">
+              <div class="tab-trigger-left">
+                <i class="bi bi-bookmark-fill"></i>
+                <span>Guardadas</span>
+              </div>
+              <div class="tab-trigger-right">
+                <span class="badge" id="saved-count">0</span>
+                <i class="bi bi-chevron-down tab-arrow"></i>
+              </div>
+            </button>
+            <div class="tab-collapse" id="saved-collapse">
+              <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" id="search-input" placeholder="Buscar frases...">
+              </div>
+              <div class="tab-collapse-content">
+                <div id="phrases-container">
+                  <div class="empty-state">
+                    <i class="bi bi-bookmark"></i>
+                    <h3>No hay frases guardadas</h3>
+                    <p>Selecciona texto en cualquier página y guárdalo para empezar.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Settings Tab -->
-          <div class="tab-content" id="settings-tab">
-            <div class="settings-scroll">
-              <div class="settings-section">
-                <h3><i class="bi bi-translate"></i> Idioma</h3>
-                <select class="select-input" id="target-language">
-                  <option value="es">🇪🇸 Español</option>
-                  <option value="en">🇺🇸 English</option>
-                  <option value="fr">🇫🇷 Français</option>
-                  <option value="de">🇩🇪 Deutsch</option>
-                </select>
+          <div class="collapsible-tab">
+            <button class="tab-trigger" data-tab="settings">
+              <div class="tab-trigger-left">
+                <i class="bi bi-gear-fill"></i>
+                <span>Ajustes</span>
               </div>
-
-              <div class="settings-section">
-                <h3><i class="bi bi-sliders"></i> Funciones</h3>
-                <label class="switch-label">
-                  <input type="checkbox" class="switch-input" id="auto-pause" checked>
-                  <span class="switch-slider-setting"></span>
-                  <span>Auto-pausar video</span>
-                </label>
-                <label class="switch-label">
-                  <input type="checkbox" class="switch-input" id="show-pronunciation" checked>
-                  <span class="switch-slider-setting"></span>
-                  <span>Mostrar pronunciación</span>
-                </label>
+              <div class="tab-trigger-right">
+                <i class="bi bi-chevron-down tab-arrow"></i>
               </div>
-
-              <div class="settings-section">
-                <h3><i class="bi bi-person-circle"></i> Cuenta</h3>
-                <div class="account-info">
-                  <div class="account-avatar">
-                    <i class="bi bi-person-fill"></i>
-                  </div>
-                  <div class="account-details">
-                    <p class="account-name" id="user-name">Usuario</p>
-                    <p class="account-email" id="user-email">demo@parla.com</p>
-                  </div>
+            </button>
+            <div class="tab-collapse" id="settings-collapse">
+              <div class="tab-collapse-content">
+                <!--This section is getting commented in case we need to revert:-->
+                <!--
+                <div class="settings-section">
+                  <h3><i class="bi bi-translate"></i> Idioma</h3>
+                  <select class="select-input" id="target-language">
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="en">🇺🇸 English</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                  </select>
                 </div>
-                <button class="btn-logout" id="btn-logout">
-                  <i class="bi bi-box-arrow-right"></i>
-                  Cerrar sesión
-                </button>
-              </div>
+                -->
 
-              <div class="settings-footer">
-                <img src="../icons/chiguiro.png" alt="Parla" class="footer-mascot">
-                <p class="footer-version">Parla v1.0.0</p>
+                <div class="settings-section">
+                  <h3><i class="bi bi-sliders"></i> Funciones</h3>
+                  <label class="switch-label">
+                    <input type="checkbox" class="switch-input" id="auto-pause" checked>
+                    <span class="switch-slider-setting"></span>
+                    <span>Auto-pausar video</span>
+                  </label>
+                  <label class="switch-label">
+                    <input type="checkbox" class="switch-input" id="show-pronunciation" checked>
+                    <span class="switch-slider-setting"></span>
+                    <span>Mostrar pronunciación</span>
+                  </label>
+                </div>
+
+                <div class="settings-section">
+                  <h3><i class="bi bi-person-circle"></i> Cuenta</h3>
+                  <div class="account-info">
+                    <div class="account-avatar">
+                      <i class="bi bi-person-fill"></i>
+                    </div>
+                    <div class="account-details">
+                      <p class="account-name" id="user-name">Usuario</p>
+                      <p class="account-email" id="user-email">demo@parla.com</p>
+                    </div>
+                  </div>
+                  <button class="btn-logout" id="btn-logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                    Cerrar sesión
+                  </button>
+                </div>
+
+                <div class="settings-footer">
+                  <img src="../icons/chiguiro.png" alt="Parla" class="footer-mascot">
+                  <p class="footer-version">Parla v1.0.0</p>
+                </div>
               </div>
             </div>
           </div>
@@ -165,7 +211,6 @@
         <p class="switch__description">
           Inicia sesión para acceder a todas tus frases guardadas y configuraciones
         </p>
-       
       </div>
 
       <div class="switch__container is-hidden" id="switch-c2">
