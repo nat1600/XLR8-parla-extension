@@ -127,16 +127,27 @@ function updateUI() {
   }
   
   updateToggleStatus();
-}
+  
+  // Apply visual state on load
+  const mainContainer = document.querySelector('.main');
+  const tutorialImg = document.querySelector('.tutorial-img');
+  
+  if (!isExtensionActive) {
+    mainContainer.classList.add('extension-disabled');
 
-function updateToggleStatus() {
-  const status = isExtensionActive ? 'Activa' : 'Inactiva';
-  if (toggleStatus) {
-    toggleStatus.textContent = status;
-    toggleStatus.style.color = isExtensionActive ? '#10b981' : '#ef4444';
+    if (tutorialImg) {
+      tutorialImg.src = '/icons/chiguirosleeping.png';
+      tutorialImg.alt = 'Chiguiro durmiendo';
+    }
+  } else {
+    mainContainer.classList.remove('extension-disabled');
+
+    if (tutorialImg) {
+      tutorialImg.src = '/icons/chiguirohesitating.png';
+      tutorialImg.alt = 'Chiguiro pensando';
+    }
   }
 }
-
 // ===========================
 // TOGGLE EXTENSION
 // ===========================
@@ -149,19 +160,88 @@ function toggleExtension(active) {
     extensionToggleMain.checked = active;
   }
   
+  const mainContainer = document.querySelector('.main');
+  const tutorialImg = document.querySelector('.tutorial-img');
+  
+  if (active) {
+    // Activando la extensión - transición suave
+    mainContainer.classList.remove('extension-disabled');
+    
+    // Cambiar imagen con delay para suavidad
+    setTimeout(() => {
+      if (tutorialImg) {
+        tutorialImg.style.opacity = '0';
+        tutorialImg.style.transform = 'scale(0.9)';
+        
+        setTimeout(() => {
+          tutorialImg.src = '/icons/chiguirohesitating.png';
+          tutorialImg.alt = 'Chiguiro pensando';
+          
+          // Fade in de la nueva imagen
+          setTimeout(() => {
+            tutorialImg.style.opacity = '1';
+            tutorialImg.style.transform = 'scale(1)';
+          }, 50);
+        }, 300);
+      }
+    }, 100);
+    
+  } else {
+    // Desactivando la extensión - transición suave
+    mainContainer.classList.add('extension-disabled');
+    
+    // Cambiar imagen con delay para suavidad
+    setTimeout(() => {
+      if (tutorialImg) {
+        tutorialImg.style.opacity = '0';
+        tutorialImg.style.transform = 'scale(0.9)';
+        
+        setTimeout(() => {
+          tutorialImg.src = '/icons/chiguirosleeping.png';
+          tutorialImg.alt = 'Chiguiro durmiendo';
+          
+          // Fade in de la nueva imagen
+          setTimeout(() => {
+            tutorialImg.style.opacity = '1';
+            tutorialImg.style.transform = 'scale(1)';
+          }, 50);
+        }, 300);
+      }
+    }, 100);
+  }
+  
   updateToggleStatus();
   
   // Save to storage
   localStorage.setItem('parla_extension_active', active);
   
-  // Send message to content script (if this were a real extension)
-  // chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-  //   chrome.tabs.sendMessage(tabs[0].id, {action: 'toggleExtension', active});
-  // });
-  
-  showNotification(active ? 'Extensión activada' : 'Extensión desactivada');
+  // Notificación con delay para no interrumpir la animación
+  setTimeout(() => {
+    showNotification(active ? 'Extensión activada' : 'Extensión desactivada');
+  }, 500);
 }
 
+// También actualiza tu función updateToggleStatus para transiciones suaves
+function updateToggleStatus() {
+  const status = isExtensionActive ? 'Activa' : 'Inactiva';
+  const statusElement = document.getElementById('toggle-status');
+  
+  if (statusElement) {
+    // Fade out
+    statusElement.style.opacity = '0';
+    statusElement.style.transform = 'translateX(-5px)';
+    
+    setTimeout(() => {
+      statusElement.textContent = status;
+      
+      // Fade in
+      setTimeout(() => {
+        statusElement.style.opacity = '1';
+        statusElement.style.transform = 'translateX(0)';
+      }, 50);
+    }, 200);
+  }
+}
 // ===========================
 // MI ESPACIO BUTTON
 // ===========================
