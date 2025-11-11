@@ -16,7 +16,7 @@ let autoPauseEnabled = true;
 // INITIALIZATION
 // ===========================
 function init() {
-   ('🎯 Parla: Initializing content script...');
+  console.log('🎯 Parla: Initializing content script...');
   loadSettings();
   detectPageType();
   injectStyles();
@@ -45,11 +45,11 @@ async function loadSettings() {
 
 // Listen for settings changes from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log(' Message received:', request);
+  console.log('📩 Message received:', request);
   
   if (request.action === 'toggleExtension') {
     isExtensionActive = request.active;
-    console.log(' Extension toggled:', isExtensionActive);
+    console.log('🔄 Extension toggled:', isExtensionActive);
     if (!isExtensionActive) {
       hideFloatingPopup();
     }
@@ -71,7 +71,7 @@ function detectPageType() {
   isNetflix = url.includes('netflix.com/watch');
   isPDF = url.includes('.pdf') || document.contentType === 'application/pdf';
   
-  console.log('age type detected:', { isYouTube, isNetflix, isPDF });
+  console.log('📄 Page type detected:', { isYouTube, isNetflix, isPDF });
   
   if (isYouTube) {
     setupYouTubeIntegration();
@@ -86,36 +86,91 @@ function detectPageType() {
 // YOUTUBE INTEGRATION
 // ===========================
 function setupYouTubeIntegration() {
-  console.log(' YouTube detected - Setting up subtitle detection');
   
-  // Wait for video player to load
+  console.log('🎥 Youtube detected - Setting up subtitle detection');
+  
+  // Waut for video and captions to load
+  waitForYouTubePlayer();
+}
+
+function waitForYouTubePlayer() {
   let attempts = 0;
-  const maxAttempts = 30;
+  const maxAttempts = 50; 
   
-  const checkVideo = setInterval(() => {
+  const checkInterval = setInterval(() => {
     attempts++;
-    videoElement = document.querySelector('video');
-    const subtitlesContainer = document.querySelector('.ytp-caption-segment');
     
-    if (videoElement && subtitlesContainer) {
-      console.log('YouTube video and subtitles found');
-      clearInterval(checkVideo);
-      attachSubtitleListeners();
+    // Search for video element
+    videoElement = document.querySelector('video');
+    
+    // Search for caption container
+    const captionWindow = document.querySelector('.caption-window, .ytp-caption-window-container');
+    
+    console.log(`🔍 Intento ${attempts}: Video=${!!videoElement}, Subtítulos=${!!captionWindow}`);
+    
+    if (videoElement) {
+      console.log('✅ Video encontrado');
+      
+      //Initiate subtitle observer
+      clearInterval(checkInterval);
+      startSubtitleObserver();
+      
     } else if (attempts >= maxAttempts) {
-      console.log(' YouTube check timeout - video or subtitles not found');
-      clearInterval(checkVideo);
+      
+      console.log('❌ Timeout: No video found');
+      clearInterval(checkInterval);
     }
-  }, 1000);
+  }, 500); // CHeck each 500ms
+}
+
+function startSubtitleObserver() {
+  console.log('👀 Initialize MutationObserver to detect subtitles...');
+  
+  //Detect subtitles being added
+  const observer = new MutationObserver((mutations) => {
+    const subtitleElements = document.querySelectorAll(
+      '.ytp-caption-segment, ' +           // Subtítulos normales
+      '.captions-text span, ' +            // Subtítulos alternativos
+      '.ytp-caption-window-container span' // Otro formato
+    );
+    
+    if (subtitleElements.length > 0) {
+      console.log(`✅ Found ${subtitleElements.length} subtitles`);
+      attachSubtitleListeners();
+    }
+  });
+  
+  //Observ the whole player for subtitle changes
+  const targetNode = document.querySelector('#movie_player') || document.body;
+  
+  observer.observe(targetNode, {
+    childList: true,
+    subtree: true
+  });
+  
+  console.log('✅ Observer configurado');
+  
+  // Try to attach listeners immediately in case subtitles are already present
+  attachSubtitleListeners();
 }
 
 function attachSubtitleListeners() {
-  console.log(' Attaching subtitle listeners...');
+  console.log('🔗 Atach event listeners to subtitle elements...');
   
-  // Observer for subtitle changes
-  const subtitlesObserver = new MutationObserver(() => {
-    const subtitleElements = document.querySelectorAll('.ytp-caption-segment');
+  // Search for subtitle elements
+  const selectors = [
+    '.ytp-caption-segment',
+    '.captions-text span',
+    '.ytp-caption-window-container span'
+  ];
+  
+  let listenersAdded = 0;
+  
+  selectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
     
-    subtitleElements.forEach(subtitle => {
+    elements.forEach(subtitle => {
+      //Just add listeners if not already added
       if (!subtitle.hasAttribute('data-parla-listener')) {
         subtitle.setAttribute('data-parla-listener', 'true');
         subtitle.style.cursor = 'pointer';
@@ -128,43 +183,97 @@ function attachSubtitleListeners() {
         // Click to select
         subtitle.addEventListener('mouseup', handleSubtitleClick);
         
-        console.log(' Subtitle listener attached');
+        listenersAdded++;
       }
     });
   });
   
-  const captionWindow = document.querySelector('.caption-window');
-  if (captionWindow) {
-    subtitlesObserver.observe(captionWindow, {
-      childList: true,
-      subtree: true
-    });
-    console.log(' Subtitle observer started');
+  if (listenersAdded > 0) {
+    console.log(`✅ ${listenersAdded} Listener added to subtitles`);
+  }
+  
+  // Configure observer for new subtitles
+  if (!window.parlaObserverActive) {
+    window.parlaObserverActive = true;
+    setupContinuousObserver();
   }
 }
 
+function setupContinuousObserver() {
+  //Observer that watches for new subtitle elements being added
+  const subtitlesObserver = new MutationObserver(() => {
+    const subtitleElements = document.querySelectorAll(
+      '.ytp-caption-segment, .captions-text span, .ytp-caption-window-container span'
+    );
+    
+    subtitleElements.forEach(subtitle => {
+      if (!subtitle.hasAttribute('data-parla-listener')) {
+        subtitle.setAttribute('data-parla-listener', 'true');
+        subtitle.style.cursor = 'pointer';
+        subtitle.style.userSelect = 'text';
+        
+        subtitle.addEventListener('mouseenter', handleSubtitleHover);
+        subtitle.addEventListener('mouseleave', handleSubtitleLeave);
+        subtitle.addEventListener('mouseup', handleSubtitleClick);
+    
+        console.log('➕ Listener added to new subtitle');
+      }
+    });
+  });
+  
+  // Observar el contenedor de subtítulos
+  const captionContainers = document.querySelectorAll(
+    '.caption-window, .ytp-caption-window-container, .captions-text'
+  );
+  
+  captionContainers.forEach(container => {
+    subtitlesObserver.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  });
+  
+  // Si no hay contenedores, observar el player completo
+  if (captionContainers.length === 0) {
+    const player = document.querySelector('#movie_player');
+    if (player) {
+      subtitlesObserver.observe(player, {
+        childList: true,
+        subtree: true
+      });
+      
+      console.log('👀 Observe the whole player for subtitle changes');
+    }
+  }
+}
+
+// ===========================
+// HANDLERS DE SUBTÍTULOS
+// ===========================
 function handleSubtitleHover(e) {
   if (!isExtensionActive || !autoPauseEnabled) return;
   
-  console.log(' Subtitle hover detected');
+  console.log('🖱️ Subtitle hover detected');
   
   if (videoElement && !videoElement.paused) {
     videoElement.pause();
     e.currentTarget.setAttribute('data-parla-paused', 'true');
-    console.log(' Video paused');
+    console.log('⏸️ Video paused');
   }
 }
 
 function handleSubtitleLeave(e) {
   if (!isExtensionActive || !autoPauseEnabled) return;
   
-  if (e.currentTarget.hasAttribute('data-parla-paused')) {
+  const element = e.currentTarget;
+  if (element && element.hasAttribute('data-parla-paused')) {
     setTimeout(() => {
-      if (videoElement) {
+      if (videoElement && element && element.isConnected) {
         videoElement.play();
-        console.log(' Video resumed');
+        console.log('▶️ Video resumed');
+        element.removeAttribute('data-parla-paused');
       }
-      e.currentTarget.removeAttribute('data-parla-paused');
     }, 300);
   }
 }
@@ -175,14 +284,13 @@ function handleSubtitleClick(e) {
   const selection = window.getSelection();
   const text = selection.toString().trim();
   
-  console.log(' Subtitle clicked, text:', text);
+  console.log('🖱️ Subtitle clicked, text:', text);
 
   if (floatingPopup) {
-    console.log('Removing previous popup:', text);
+    console.log('🗑️ Removing previous popup');
     floatingPopup.remove();
     floatingPopup = null;
   }
-
   
   if (text.length > 0) {
     selectedText = text;
@@ -191,10 +299,46 @@ function handleSubtitleClick(e) {
 }
 
 // ===========================
+// DEBUGGING FUNCTION
+// ===========================
+function debugYouTubeSubtitles() {
+  console.log('🐛 DEBUG: Searching for subtitles...');
+  
+  const selectors = {
+    'Video': 'video',
+    'Caption Window': '.caption-window',
+    'YTP Caption Segment': '.ytp-caption-segment',
+    'Captions Text': '.captions-text',
+    'YTP Caption Container': '.ytp-caption-window-container',
+    'Movie Player': '#movie_player'
+  };
+  
+  Object.entries(selectors).forEach(([name, selector]) => {
+    const elements = document.querySelectorAll(selector);
+    console.log(`${name} (${selector}): ${elements.length} found`);
+    
+    if (elements.length > 0) {
+      console.log('  First element:', elements[0]);
+      if (elements[0].textContent) {
+        console.log('  Text:', elements[0].textContent.substring(0, 50));
+      }
+    }
+  });
+  
+  console.log('\n📊 Current State:');
+  console.log('  isYouTube:', isYouTube);
+  console.log('  videoElement:', videoElement);
+  console.log('  isExtensionActive:', isExtensionActive);
+}
+
+// Make the function accessible globally
+window.debugYouTubeSubtitles = debugYouTubeSubtitles;
+
+// ===========================
 // NETFLIX INTEGRATION
 // ===========================
 function setupNetflixIntegration() {
-  console.log('Netflix detected - Setting up subtitle detection');
+  console.log('🎬 Netflix detected - Setting up subtitle detection');
   
   let attempts = 0;
   const maxAttempts = 30;
@@ -205,18 +349,18 @@ function setupNetflixIntegration() {
     const subtitlesContainer = document.querySelector('.player-timedtext');
     
     if (videoElement && subtitlesContainer) {
-      console.log(' Netflix video and subtitles found');
+      console.log('✅ Netflix video and subtitles found');
       clearInterval(checkVideo);
       attachNetflixSubtitleListeners();
     } else if (attempts >= maxAttempts) {
-      console.log(' Netflix check timeout');
+      console.log('⏱️ Netflix check timeout');
       clearInterval(checkVideo);
     }
   }, 1000);
 }
 
 function attachNetflixSubtitleListeners() {
-  console.log(' Attaching Netflix subtitle listeners...');
+  console.log('🔗 Attaching Netflix subtitle listeners...');
   
   const subtitlesObserver = new MutationObserver(() => {
     const subtitleElements = document.querySelectorAll('.player-timedtext-text-container span');
@@ -231,7 +375,7 @@ function attachNetflixSubtitleListeners() {
         subtitle.addEventListener('mouseleave', handleSubtitleLeave);
         subtitle.addEventListener('mouseup', handleSubtitleClick);
         
-        console.log('Netflix subtitle listener attached');
+        console.log('✅ Netflix subtitle listener attached');
       }
     });
   });
@@ -242,7 +386,7 @@ function attachNetflixSubtitleListeners() {
       childList: true,
       subtree: true
     });
-    console.log(' Netflix subtitle observer started');
+    console.log('✅ Netflix subtitle observer started');
   }
 }
 
@@ -250,28 +394,25 @@ function attachNetflixSubtitleListeners() {
 // PDF INTEGRATION
 // ===========================
 function setupPDFIntegration() {
-  console.log(' PDF detected - Enhanced text selection enabled');
+  console.log('📄 PDF detected - Enhanced text selection enabled');
 }
 
 // ===========================
 // GENERAL TEXT SELECTION
 // ===========================
 function setupEventListeners() {
-  //document.addEventListener('mouseup', handleTextSelection);
-  
   let popupTimeout;
 
   document.addEventListener('mouseup', (e) => {
-    clearTimeout(popupTimeout);                     //Clean previous timers
+    clearTimeout(popupTimeout);
     popupTimeout = setTimeout(() => {
       handleTextSelection(e);
-    }, 150);  // 150 miliseconds delay
+    }, 150);
   });
-
 
   document.addEventListener('keydown', handleKeyDown);
   
-  console.log(' Event listeners attached');
+  console.log('✅ Event listeners attached');
 }
 
 function handleTextSelection(e) {
@@ -282,20 +423,20 @@ function handleTextSelection(e) {
   
   // Don't show popup if clicking on the popup itself
   if (floatingPopup && floatingPopup.contains(e.target)) {
-    console.log(' Clicked on popup itself');
+    console.log('🖱️ Clicked on popup itself');
     return;
   }
   
   // Don't interfere with YouTube/Netflix subtitles (handled separately)
   if ((isYouTube || isNetflix) && e.target.closest('.ytp-caption-segment, .player-timedtext')) {
-    console.log(' Subtitle click handled separately');
+    console.log('📺 Subtitle click handled separately');
     return;
   }
   
   const selection = window.getSelection();
   const text = selection.toString().trim();
   
-  console.log(' Text selected:', text);
+  console.log('📝 Text selected:', text);
   
   if (text.length > 0) {
     selectedText = text;
@@ -307,7 +448,7 @@ function handleTextSelection(e) {
 
 function handleKeyDown(e) {
   if (e.key === 'Escape') {
-    console.log(' Escape pressed - hiding popup');
+    console.log('⌨️ Escape pressed - hiding popup');
     hideFloatingPopup();
   }
 }
@@ -316,7 +457,7 @@ function handleKeyDown(e) {
 // FLOATING POPUP
 // ===========================
 function showFloatingPopup(x, y) {
-  console.log(' Showing floating popup at', { x, y });
+  console.log('💬 Showing floating popup at', { x, y });
   
   // Remove existing popup
   hideFloatingPopup();
@@ -373,59 +514,50 @@ function showFloatingPopup(x, y) {
   }, 10);
   
   // Setup event listeners
-  // Avoid propagation:
   floatingPopup.addEventListener('mousedown', (e) => e.stopPropagation());
   floatingPopup.addEventListener('mouseup', (e) => e.stopPropagation());
 
-  // Close pop up
   document.getElementById('parla-close').addEventListener('click', (e) => {
     e.stopPropagation();  
     hideFloatingPopup();
   });
 
-  // Save phrase with delay
   const saveButton = document.getElementById('parla-save');
   saveButton.addEventListener('click', async (e) => {
     e.stopPropagation();
     
-    // Avoid double clic
     if (saveButton.disabled) return;
     saveButton.disabled = true;
     saveButton.style.opacity = '0.6';
 
     await savePhrase();
 
-    // Activate after 1 second
     setTimeout(() => {
       saveButton.disabled = false;
       saveButton.style.opacity = '1';
     }, 1000);
   });
 
-  // Speak text with delay
   const speakButton = document.getElementById('parla-speak');
   speakButton.addEventListener('click', (e) => {
     e.stopPropagation();
 
-    // Avoid double clic
     if (speakButton.disabled) return;
     speakButton.disabled = true;
     speakButton.style.opacity = '0.6';
 
     speakText();
 
-    // Activate after 1 second
     setTimeout(() => {
       speakButton.disabled = false;
-      speakButton.style.opacity = '1.5';
+      speakButton.style.opacity = '1';
     }, 1500);
   });
-
   
   // Translate text
   translateText(selectedText);
   
-  console.log(' Popup displayed');
+  console.log('✅ Popup displayed');
 }
 
 function positionPopup(popup, x, y) {
@@ -436,7 +568,6 @@ function positionPopup(popup, x, y) {
   let left = x + 10;
   let top = y + 10;
   
-  // Adjust if popup goes off screen
   if (left + rect.width > viewportWidth) {
     left = x - rect.width - 10;
   }
@@ -445,7 +576,6 @@ function positionPopup(popup, x, y) {
     top = y - rect.height - 10;
   }
   
-  // Ensure popup stays within viewport
   left = Math.max(10, Math.min(left, viewportWidth - rect.width - 10));
   top = Math.max(10, Math.min(top, viewportHeight - rect.height - 10));
   
@@ -471,19 +601,16 @@ function hideFloatingPopup() {
 async function translateText(text) {
   const translationContainer = document.getElementById('parla-translation');
   
-  console.log(' Translating text:', text);
+  console.log('🌐 Translating text:', text);
   
   try {
-    // Get target language from storage
     const settings = await chrome.storage.local.get(['parla_target_language']);
     const targetLanguage = settings.parla_target_language || 'es';
     
-    console.log('arget language:', targetLanguage);
+    console.log('🎯 Target language:', targetLanguage);
     
-    // Simulate API call - Replace with actual translation API
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    // Mock translation
     const translation = await mockTranslate(text, targetLanguage);
     
     translationContainer.innerHTML = `
@@ -493,9 +620,9 @@ async function translateText(text) {
       </div>
     `;
     
-    console.log('Translation completed:', translation);
+    console.log('✅ Translation completed:', translation);
   } catch (error) {
-    console.error('Translation error:', error);
+    console.error('❌ Translation error:', error);
     translationContainer.innerHTML = `
       <div class="parla-error">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -509,7 +636,6 @@ async function translateText(text) {
 }
 
 async function mockTranslate(text, targetLang) {
-  // This is a mock function - integrate with real translation API
   const translations = {
     'Hello': 'Hola',
     'Thank you': 'Gracias',
@@ -528,7 +654,7 @@ async function savePhrase() {
   const translationText = document.querySelector('.parla-translation-text');
   if (!translationText) return;
   
-  console.log('Saving phrase...');
+  console.log('💾 Saving phrase...');
   
   const phrase = {
     id: Date.now().toString(),
@@ -541,21 +667,18 @@ async function savePhrase() {
   };
   
   try {
-    // Save to chrome.storage
     const result = await chrome.storage.local.get(['parla_phrases']);
     const phrases = result.parla_phrases || [];
     phrases.unshift(phrase);
     await chrome.storage.local.set({ parla_phrases: phrases });
     
-    // Notify popup to update count
     chrome.runtime.sendMessage({ 
       action: 'phraseAdded',
       phrase: phrase 
     }).catch(() => console.log('Popup not open'));
     
-    console.log('Phrase saved:', phrase);
+    console.log('✅ Phrase saved:', phrase);
     
-    // Show success feedback
     showNotification('✓ Frase guardada');
     hideFloatingPopup();
   } catch (error) {
@@ -565,7 +688,7 @@ async function savePhrase() {
 }
 
 function speakText() {
-  console.log(' Speaking text:', selectedText);
+  console.log('🔊 Speaking text:', selectedText);
   
   if ('speechSynthesis' in window) {
     const utterance = new SpeechSynthesisUtterance(selectedText);
@@ -575,7 +698,7 @@ function speakText() {
     
     showNotification('🔊 Reproduciendo...');
   } else {
-    console.log(' Speech synthesis not available');
+    console.log('❌ Speech synthesis not available');
     showNotification('Text-to-speech no disponible');
   }
 }
@@ -591,7 +714,7 @@ function getContext() {
 // NOTIFICATIONS
 // ===========================
 function showNotification(message) {
-  console.log('Showing notification:', message);
+  console.log('📢 Showing notification:', message);
   
   const notification = document.createElement('div');
   notification.className = 'parla-notification';
@@ -858,7 +981,7 @@ function injectStyles() {
   `;
   
   document.head.appendChild(style);
-  console.log(' Styles injected');
+  console.log('✅ Styles injected');
 }
 
 // ===========================
