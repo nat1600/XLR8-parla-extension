@@ -2,7 +2,7 @@
 // PARLA CONTENT SCRIPT
 // ===========================
 //
-// TODO : all this code is generating we have to improve it
+
 let isExtensionActive = true;
 let floatingPopup = null;
 let selectedText = '';
@@ -129,9 +129,9 @@ function startSubtitleObserver() {
   //Detect subtitles being added
   const observer = new MutationObserver((mutations) => {
     const subtitleElements = document.querySelectorAll(
-      '.ytp-caption-segment, ' +           // Subtítulos normales
-      '.captions-text span, ' +            // Subtítulos alternativos
-      '.ytp-caption-window-container span' // Otro formato
+      '.ytp-caption-segment, ' +           // Normal subtitles
+      '.captions-text span, ' +            // Alternative format
+      '.ytp-caption-window-container span' // Other format
     );
     
     if (subtitleElements.length > 0) {
@@ -221,7 +221,7 @@ function setupContinuousObserver() {
     });
   });
   
-  // Observar el contenedor de subtítulos
+  // Observe content of subtitles
   const captionContainers = document.querySelectorAll(
     '.caption-window, .ytp-caption-window-container, .captions-text'
   );
@@ -234,7 +234,7 @@ function setupContinuousObserver() {
     });
   });
   
-  // Si no hay contenedores, observar el player completo
+  // If there is not a caption container yet, observe the whole player
   if (captionContainers.length === 0) {
     const player = document.querySelector('#movie_player');
     if (player) {
@@ -334,10 +334,10 @@ function debugYouTubeSubtitles() {
 // Make the function accessible globally
 window.debugYouTubeSubtitles = debugYouTubeSubtitles;
 
+
 // ===========================
-// NETFLIX INTEGRATION - SOLUCIÓN CON OVERLAY MEJORADA
+// NETFLIX INTEGRATION
 // ===========================
-// REEMPLAZAR TODA LA SECCIÓN DE NETFLIX EN content.js
 
 function setupNetflixIntegration() {
   console.log('🎬 Netflix detected - Setting up subtitle detection with overlay');
@@ -362,7 +362,7 @@ function waitForNetflixPlayer() {
       clearInterval(checkInterval);
       setTimeout(() => {
         startNetflixSubtitleObserver();
-        createNetflixOverlay(); // ⭐ Crear overlay
+        createNetflixOverlay(); // Create overlay
       }, 1000);
     } else if (attempts >= maxAttempts) {
       console.log('⏱️ Netflix timeout');
@@ -371,7 +371,7 @@ function waitForNetflixPlayer() {
   }, 500);
 }
 
-// ⭐ NUEVA FUNCIÓN: Crear overlay clicable sobre los subtítulos
+// Create clickable overlay
 function createNetflixOverlay() {
   if (document.getElementById('parla-netflix-overlay')) {
     console.log('⚠️ Overlay already exists');
@@ -394,14 +394,13 @@ function createNetflixOverlay() {
   
   document.body.appendChild(overlay);
   
-  // ⭐ USAR setInterval en lugar de MutationObserver
-  // Actualizar cada 100ms para sincronizar con los subtítulos
+  // Update every 100ms
   window.netflixOverlayInterval = setInterval(() => {
     if (!isExtensionActive) return;
     updateNetflixOverlay(overlay);
   }, 100);
   
-  // También observar cambios en el DOM como respaldo
+  // Use DOM as backup
   const subtitleObserver = new MutationObserver(() => {
     updateNetflixOverlay(overlay);
   });
@@ -416,7 +415,7 @@ function createNetflixOverlay() {
     });
   }
   
-  // Actualizar inmediatamente
+  // Update once immediately
   updateNetflixOverlay(overlay);
   
   console.log('✅ Netflix overlay created with interval updater');
@@ -425,10 +424,10 @@ function createNetflixOverlay() {
 function updateNetflixOverlay(overlay) {
   if (!overlay || !overlay.parentNode) return;
   
-  // Buscar subtítulos activos
+  // Look for subtitle container
   const subtitleContainer = document.querySelector('.player-timedtext-text-container');
   
-  // Si no hay subtítulo visible, limpiar el overlay
+  // Clean if no subtitles
   if (!subtitleContainer || 
       !subtitleContainer.textContent.trim() || 
       subtitleContainer.style.display === 'none') {
@@ -441,10 +440,10 @@ function updateNetflixOverlay(overlay) {
   const text = subtitleContainer.textContent.trim();
   const rect = subtitleContainer.getBoundingClientRect();
   
-  // Verificar si ya existe un área clicable con el mismo texto
+  // Check if overlay already exists for this text
   const existingArea = overlay.querySelector('[data-subtitle-text]');
   if (existingArea && existingArea.getAttribute('data-subtitle-text') === text) {
-    // Solo actualizar posición si cambió
+    // Update position if changed
     const currentLeft = parseInt(existingArea.style.left);
     const currentTop = parseInt(existingArea.style.top);
     
@@ -457,10 +456,10 @@ function updateNetflixOverlay(overlay) {
     return;
   }
   
-  // Limpiar y crear nuevo
+  // Clean previous
   overlay.innerHTML = '';
   
-  // Crear botón clicable sobre el subtítulo
+  // Create new clickable area with text selection support
   const clickableArea = document.createElement('div');
   clickableArea.style.cssText = `
     position: absolute;
@@ -469,19 +468,46 @@ function updateNetflixOverlay(overlay) {
     width: ${rect.width}px;
     height: ${rect.height}px;
     pointer-events: auto;
-    cursor: pointer;
+    cursor: text;
     background: transparent;
     transition: background 0.2s;
     border-radius: 6px;
     padding: 6px 10px;
     box-sizing: border-box;
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
   `;
   
   clickableArea.setAttribute('data-subtitle-text', text);
   
-  // Eventos
+  // Add the text content so users can select it
+  clickableArea.textContent = text;
+  clickableArea.style.color = 'transparent';
+
+  // Get subtitle styles and apply with better sizing
+  const subtitleStyles = window.getComputedStyle(subtitleContainer);
+  const baseFontSize = parseFloat(subtitleStyles.fontSize);
+
+  // Make font slightly larger for better selection (increase by 3.5x)
+  clickableArea.style.fontSize = `${baseFontSize * 3.5}px`;
+  clickableArea.style.fontFamily = subtitleStyles.fontFamily;
+  clickableArea.style.fontWeight = subtitleStyles.fontWeight;
+  clickableArea.style.textAlign = subtitleStyles.textAlign;
+  
+  // line spacing for multi-line subtitles
+  const baseLineHeight = parseFloat(subtitleStyles.lineHeight);
+  clickableArea.style.lineHeight = baseLineHeight ? `${baseLineHeight * 5.5}px` : '5.5';
+
+  // Better vertical alignment
+  clickableArea.style.display = 'flex';
+  clickableArea.style.alignItems = 'center';
+  clickableArea.style.justifyContent = 'center';
+  
+  // Hover effects
   clickableArea.addEventListener('mouseenter', () => {
-    clickableArea.style.background = 'rgba(188, 162, 242, 0.3)';
+    clickableArea.style.background = 'rgba(188, 162, 242, 0.2)';
     clickableArea.style.boxShadow = '0 2px 8px rgba(188, 162, 242, 0.3)';
     
     if (autoPauseEnabled && videoElement && !videoElement.paused) {
@@ -506,41 +532,49 @@ function updateNetflixOverlay(overlay) {
     }
   });
   
-  clickableArea.addEventListener('click', (e) => {
+  // Handle text selection and click
+  clickableArea.addEventListener('mouseup', (e) => {
     if (!isExtensionActive) return;
     
     e.stopPropagation();
     e.stopImmediatePropagation();
-    e.preventDefault();
     
-    const subtitleText = clickableArea.getAttribute('data-subtitle-text');
-    console.log('🖱️ Netflix subtitle clicked via overlay:', subtitleText);
+    // Get selected text
+    const selection = window.getSelection();
+    const selectedTextContent = selection.toString().trim();
+    
+    console.log('🖱️ Netflix subtitle interaction:', {
+      selectedText: selectedTextContent,
+      fullText: text
+    });
+    
+    // If user selected specific text, use that; otherwise use full subtitle
+    const textToUse = selectedTextContent.length > 0 ? selectedTextContent : text;
     
     if (floatingPopup) {
       floatingPopup.remove();
       floatingPopup = null;
     }
     
-    if (subtitleText && subtitleText.length > 0) {
-      selectedText = subtitleText;
+    if (textToUse && textToUse.length > 0) {
+      selectedText = textToUse;
       
-      // Marcar que el click vino del overlay de Netflix
+      // Mark that the click was handled by Netflix overlay
       window.netflixClickHandled = true;
       
       showFloatingPopup(e.clientX, e.clientY);
       
-      // Resetear después de un momento
+      // Reset after short delay
       setTimeout(() => {
         window.netflixClickHandled = false;
       }, 500);
     }
   });
   
-  // También capturar mouseup para evitar que se propague
-  clickableArea.addEventListener('mouseup', (e) => {
+  // Prevent double-click from propagating
+  clickableArea.addEventListener('dblclick', (e) => {
     e.stopPropagation();
     e.stopImmediatePropagation();
-    e.preventDefault();
   });
   
   overlay.appendChild(clickableArea);
@@ -556,9 +590,9 @@ function startNetflixSubtitleObserver() {
   console.log('👀 Starting Netflix subtitle observer...');
 }
 
-// Función de debug mejorada
+// Debug
 function debugNetflixSubtitles() {
-  console.log('🐛 DEBUG: Netflix subtitle detection\n');
+  console.log('DEBUG: Netflix subtitle detection\n');
   
   const video = document.querySelector('video');
   console.log('📹 Video element:', video);
@@ -588,7 +622,7 @@ function debugNetflixSubtitles() {
   });
   
   const overlay = document.getElementById('parla-netflix-overlay');
-  console.log('\n✨ Overlay status:');
+  console.log('\n Overlay status:');
   console.log('  Overlay exists:', !!overlay);
   if (overlay) {
     console.log('  Overlay children:', overlay.children.length);
@@ -660,7 +694,7 @@ function setupEventListeners() {
   let popupTimeout;
 
   document.addEventListener('mouseup', (e) => {
-    // ⭐ No ejecutar handleTextSelection si es un click de Netflix overlay
+    // Don't proceed if Netflix overlay handled the click
     if (window.netflixClickHandled) {
       console.log('⏭️ Skipping text selection handler - Netflix overlay active');
       return;
@@ -684,7 +718,7 @@ function handleTextSelection(e) {
     return;
   }
   
-  // ⭐ NUEVO: Ignorar si el click vino del overlay de Netflix
+  // if click was handled by Netflix overlay, skip
   if (window.netflixClickHandled) {
     console.log('🎬 Click handled by Netflix overlay - skipping');
     return;
