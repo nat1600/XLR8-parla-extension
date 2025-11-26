@@ -25,7 +25,18 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/content.js"],
+      "js": [
+        "utils/helpers.js",
+        "content/modules/core/settings.js",
+        "content/modules/core/translation.js",
+        "content/modules/core/actions.js",
+        "content/modules/core/popup.js",
+        "content/modules/platforms/youtube.js",
+        "content/modules/platforms/netflix.js",
+        "content/modules/platforms/pdf.js",
+        "content/content.js"
+      ],
+      "css": ["content/content.css"],
       "run_at": "document_end"
     }
   ],

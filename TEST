@@ -1,0 +1,1305 @@
+// ===========================
+// PARLA CONTENT SCRIPT
+// ===========================
+//
+
+let isExtensionActive = true;
+let floatingPopup = null;
+let selectedText = '';
+let isYouTube = false;
+let isNetflix = false;
+let isPDF = false;
+let videoElement = null;
+let autoPauseEnabled = true;
+
+// ===========================
+// INITIALIZATION
+// ===========================
+function init() {
+  console.log('🎯 Parla: Initializing content script...');
+  loadSettings();
+  detectPageType();
+  injectStyles();
+  setupEventListeners();
+  
+  console.log('Parla extension initialized successfully');
+}
+
+// ===========================
+// SETTINGS
+// ===========================
+async function loadSettings() {
+  try {
+    const result = await chrome.storage.local.get(['parla_extension_active', 'parla_auto_pause']);
+    isExtensionActive = result.parla_extension_active !== false;
+    autoPauseEnabled = result.parla_auto_pause !== false;
+    
+    console.log('Settings loaded:', { isExtensionActive, autoPauseEnabled });
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    // Fallback to defaults
+    isExtensionActive = true;
+    autoPauseEnabled = true;
+  }
+}
+
+// Listen for settings changes from popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('📩 Message received:', request);
+  
+  if (request.action === 'toggleExtension') {
+    isExtensionActive = request.active;
+    console.log('🔄 Extension toggled:', isExtensionActive);
+    if (!isExtensionActive) {
+      hideFloatingPopup();
+    }
+  } else if (request.action === 'settingsUpdated') {
+    loadSettings();
+  }
+  
+  sendResponse({ success: true });
+  return true;
+});
+
+// ===========================
+// PAGE TYPE DETECTION
+// ===========================
+function detectPageType() {
+  const url = window.location.href;
+  
+  isYouTube = url.includes('youtube.com/watch');
+  isNetflix = url.includes('netflix.com/watch');
+  isPDF = url.includes('.pdf') || document.contentType === 'application/pdf';
+  
+  console.log('📄 Page type detected:', { isYouTube, isNetflix, isPDF });
+  
+  if (isYouTube) {
+    setupYouTubeIntegration();
+  } else if (isNetflix) {
+    setupNetflixIntegration();
+  } else if (isPDF) {
+    setupPDFIntegration();
+  }
+}
+
+// ===========================
+// YOUTUBE INTEGRATION
+// ===========================
+function setupYouTubeIntegration() {
+  
+  console.log('🎥 Youtube detected - Setting up subtitle detection');
+  
+  // Waut for video and captions to load
+  waitForYouTubePlayer();
+}
+
+function waitForYouTubePlayer() {
+  let attempts = 0;
+  const maxAttempts = 50; 
+  
+  const checkInterval = setInterval(() => {
+    attempts++;
+    
+    // Search for video element
+    videoElement = document.querySelector('video');
+    
+    // Search for caption container
+    const captionWindow = document.querySelector('.caption-window, .ytp-caption-window-container');
+    
+    console.log(`🔍 Intento ${attempts}: Video=${!!videoElement}, Subtítulos=${!!captionWindow}`);
+    
+    if (videoElement) {
+      console.log('✅ Video encontrado');
+      
+      //Initiate subtitle observer
+      clearInterval(checkInterval);
+      startSubtitleObserver();
+      
+    } else if (attempts >= maxAttempts) {
+      
+      console.log('❌ Timeout: No video found');
+      clearInterval(checkInterval);
+    }
+  }, 500); // CHeck each 500ms
+}
+
+function startSubtitleObserver() {
+  console.log('👀 Initialize MutationObserver to detect subtitles...');
+  
+  //Detect subtitles being added
+  const observer = new MutationObserver((mutations) => {
+    const subtitleElements = document.querySelectorAll(
+      '.ytp-caption-segment, ' +           // Normal subtitles
+      '.captions-text span, ' +            // Alternative format
+      '.ytp-caption-window-container span' // Other format
+    );
+    
+    if (subtitleElements.length > 0) {
+      console.log(`✅ Found ${subtitleElements.length} subtitles`);
+      attachSubtitleListeners();
+    }
+  });
+  
+  //Observ the whole player for subtitle changes
+  const targetNode = document.querySelector('#movie_player') || document.body;
+  
+  observer.observe(targetNode, {
+    childList: true,
+    subtree: true
+  });
+  
+  console.log('✅ Observer configurado');
+  
+  // Try to attach listeners immediately in case subtitles are already present
+  attachSubtitleListeners();
+}
+
+function attachSubtitleListeners() {
+  console.log('🔗 Atach event listeners to subtitle elements...');
+  
+  // Search for subtitle elements
+  const selectors = [
+    '.ytp-caption-segment',
+    '.captions-text span',
+    '.ytp-caption-window-container span'
+  ];
+  
+  let listenersAdded = 0;
+  
+  selectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    
+    elements.forEach(subtitle => {
+      //Just add listeners if not already added
+      if (!subtitle.hasAttribute('data-parla-listener')) {
+        subtitle.setAttribute('data-parla-listener', 'true');
+        subtitle.style.cursor = 'pointer';
+        subtitle.style.userSelect = 'text';
+        
+        // Hover to pause
+        subtitle.addEventListener('mouseenter', handleSubtitleHover);
+        subtitle.addEventListener('mouseleave', handleSubtitleLeave);
+        
+        // Click to select
+        subtitle.addEventListener('mouseup', handleSubtitleClick);
+        
+        listenersAdded++;
+      }
+    });
+  });
+  
+  if (listenersAdded > 0) {
+    console.log(`✅ ${listenersAdded} Listener added to subtitles`);
+  }
+  
+  // Configure observer for new subtitles
+  if (!window.parlaObserverActive) {
+    window.parlaObserverActive = true;
+    setupContinuousObserver();
+  }
+}
+
+function setupContinuousObserver() {
+  //Observer that watches for new subtitle elements being added
+  const subtitlesObserver = new MutationObserver(() => {
+    const subtitleElements = document.querySelectorAll(
+      '.ytp-caption-segment, .captions-text span, .ytp-caption-window-container span'
+    );
+    
+    subtitleElements.forEach(subtitle => {
+      if (!subtitle.hasAttribute('data-parla-listener')) {
+        subtitle.setAttribute('data-parla-listener', 'true');
+        subtitle.style.cursor = 'pointer';
+        subtitle.style.userSelect = 'text';
+        
+        subtitle.addEventListener('mouseenter', handleSubtitleHover);
+        subtitle.addEventListener('mouseleave', handleSubtitleLeave);
+        subtitle.addEventListener('mouseup', handleSubtitleClick);
+    
+        console.log('➕ Listener added to new subtitle');
+      }
+    });
+  });
+  
+  // Observe content of subtitles
+  const captionContainers = document.querySelectorAll(
+    '.caption-window, .ytp-caption-window-container, .captions-text'
+  );
+  
+  captionContainers.forEach(container => {
+    subtitlesObserver.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  });
+  
+  // If there is not a caption container yet, observe the whole player
+  if (captionContainers.length === 0) {
+    const player = document.querySelector('#movie_player');
+    if (player) {
+      subtitlesObserver.observe(player, {
+        childList: true,
+        subtree: true
+      });
+      
+      console.log('👀 Observe the whole player for subtitle changes');
+    }
+  }
+}
+
+// ===========================
+// HANDLERS DE SUBTÍTULOS
+// ===========================
+function handleSubtitleHover(e) {
+  if (!isExtensionActive || !autoPauseEnabled) return;
+  
+  console.log('🖱️ Subtitle hover detected');
+  
+  if (videoElement && !videoElement.paused) {
+    videoElement.pause();
+    e.currentTarget.setAttribute('data-parla-paused', 'true');
+    console.log('⏸️ Video paused');
+  }
+}
+
+function handleSubtitleLeave(e) {
+  if (!isExtensionActive || !autoPauseEnabled) return;
+  
+  const element = e.currentTarget;
+  if (element && element.hasAttribute('data-parla-paused')) {
+    setTimeout(() => {
+      if (videoElement && element && element.isConnected) {
+        videoElement.play();
+        console.log('▶️ Video resumed');
+        element.removeAttribute('data-parla-paused');
+      }
+    }, 300);
+  }
+}
+
+function handleSubtitleClick(e) {
+  if (!isExtensionActive) return;
+  
+  const selection = window.getSelection();
+  const text = selection.toString().trim();
+  
+  console.log('🖱️ Subtitle clicked, text:', text);
+
+  if (floatingPopup) {
+    console.log('🗑️ Removing previous popup');
+    floatingPopup.remove();
+    floatingPopup = null;
+  }
+  
+  if (text.length > 0) {
+    selectedText = text;
+    showFloatingPopup(e.clientX, e.clientY);
+  }
+}
+
+// ===========================
+// DEBUGGING FUNCTION
+// ===========================
+function debugYouTubeSubtitles() {
+  console.log('🐛 DEBUG: Searching for subtitles...');
+  
+  const selectors = {
+    'Video': 'video',
+    'Caption Window': '.caption-window',
+    'YTP Caption Segment': '.ytp-caption-segment',
+    'Captions Text': '.captions-text',
+    'YTP Caption Container': '.ytp-caption-window-container',
+    'Movie Player': '#movie_player'
+  };
+  
+  Object.entries(selectors).forEach(([name, selector]) => {
+    const elements = document.querySelectorAll(selector);
+    console.log(`${name} (${selector}): ${elements.length} found`);
+    
+    if (elements.length > 0) {
+      console.log('  First element:', elements[0]);
+      if (elements[0].textContent) {
+        console.log('  Text:', elements[0].textContent.substring(0, 50));
+      }
+    }
+  });
+  
+  console.log('\n📊 Current State:');
+  console.log('  isYouTube:', isYouTube);
+  console.log('  videoElement:', videoElement);
+  console.log('  isExtensionActive:', isExtensionActive);
+}
+
+// Make the function accessible globally
+window.debugYouTubeSubtitles = debugYouTubeSubtitles;
+
+
+// ===========================
+// NETFLIX INTEGRATION
+// ===========================
+
+function setupNetflixIntegration() {
+  console.log('🎬 Netflix detected - Setting up subtitle detection with overlay');
+  waitForNetflixPlayer();
+}
+
+function waitForNetflixPlayer() {
+  let attempts = 0;
+  const maxAttempts = 50;
+  
+  const checkInterval = setInterval(() => {
+    attempts++;
+    videoElement = document.querySelector('video');
+    const subtitlesContainer = document.querySelector(
+      '.player-timedtext, .player-timedtext-container, [class*="timedtext"]'
+    );
+    
+    console.log(`🔍 Netflix attempt ${attempts}: Video=${!!videoElement}, Subtitles=${!!subtitlesContainer}`);
+    
+    if (videoElement) {
+      console.log('✅ Netflix video found');
+      clearInterval(checkInterval);
+      setTimeout(() => {
+        startNetflixSubtitleObserver();
+        createNetflixOverlay(); // Create overlay
+      }, 1000);
+    } else if (attempts >= maxAttempts) {
+      console.log('⏱️ Netflix timeout');
+      clearInterval(checkInterval);
+    }
+  }, 500);
+}
+
+// Create clickable overlay
+function createNetflixOverlay() {
+  if (document.getElementById('parla-netflix-overlay')) {
+    console.log('⚠️ Overlay already exists');
+    return;
+  }
+  
+  console.log('🎯 Creating Netflix subtitle overlay...');
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'parla-netflix-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2147483645;
+  `;
+  
+  document.body.appendChild(overlay);
+  
+  // Update every 100ms
+  window.netflixOverlayInterval = setInterval(() => {
+    if (!isExtensionActive) return;
+    updateNetflixOverlay(overlay);
+  }, 100);
+  
+  // Use DOM as backup
+  const subtitleObserver = new MutationObserver(() => {
+    updateNetflixOverlay(overlay);
+  });
+  
+  const timedTextContainer = document.querySelector('.player-timedtext');
+  if (timedTextContainer) {
+    subtitleObserver.observe(timedTextContainer, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true
+    });
+  }
+  
+  // Update once immediately
+  updateNetflixOverlay(overlay);
+  
+  console.log('✅ Netflix overlay created with interval updater');
+}
+
+function updateNetflixOverlay(overlay) {
+  if (!overlay || !overlay.parentNode) return;
+  
+  // Look for subtitle container
+  const subtitleContainer = document.querySelector('.player-timedtext-text-container');
+  
+  // Clean if no subtitles
+  if (!subtitleContainer || 
+      !subtitleContainer.textContent.trim() || 
+      subtitleContainer.style.display === 'none') {
+    if (overlay.children.length > 0) {
+      overlay.innerHTML = '';
+    }
+    return;
+  }
+  
+  const text = subtitleContainer.textContent.trim();
+  const rect = subtitleContainer.getBoundingClientRect();
+  
+  // Check if overlay already exists for this text
+  const existingArea = overlay.querySelector('[data-subtitle-text]');
+  if (existingArea && existingArea.getAttribute('data-subtitle-text') === text) {
+    // Update position if changed
+    const currentLeft = parseInt(existingArea.style.left);
+    const currentTop = parseInt(existingArea.style.top);
+    
+    if (Math.abs(currentLeft - rect.left) > 5 || Math.abs(currentTop - rect.top) > 5) {
+      existingArea.style.left = `${rect.left}px`;
+      existingArea.style.top = `${rect.top}px`;
+      existingArea.style.width = `${rect.width}px`;
+      existingArea.style.height = `${rect.height}px`;
+    }
+    return;
+  }
+  
+  // Clean previous
+  overlay.innerHTML = '';
+  
+  // Create new clickable area with text selection support
+  const clickableArea = document.createElement('div');
+  clickableArea.style.cssText = `
+    position: absolute;
+    left: ${rect.left}px;
+    top: ${rect.top}px;
+    width: ${rect.width}px;
+    height: ${rect.height}px;
+    pointer-events: auto;
+    cursor: text;
+    background: transparent;
+    transition: background 0.2s;
+    border-radius: 6px;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+  `;
+  
+  clickableArea.setAttribute('data-subtitle-text', text);
+  
+  // Add the text content so users can select it
+  clickableArea.textContent = text;
+  clickableArea.style.color = 'transparent';
+  clickableArea.style.fontSize = window.getComputedStyle(subtitleContainer).fontSize;
+  clickableArea.style.fontFamily = window.getComputedStyle(subtitleContainer).fontFamily;
+  clickableArea.style.fontWeight = window.getComputedStyle(subtitleContainer).fontWeight;
+  clickableArea.style.textAlign = window.getComputedStyle(subtitleContainer).textAlign;
+  clickableArea.style.lineHeight = window.getComputedStyle(subtitleContainer).lineHeight;
+  
+  // Hover effects
+  clickableArea.addEventListener('mouseenter', () => {
+    clickableArea.style.background = 'rgba(188, 162, 242, 0.2)';
+    clickableArea.style.boxShadow = '0 2px 8px rgba(188, 162, 242, 0.3)';
+    
+    if (autoPauseEnabled && videoElement && !videoElement.paused) {
+      videoElement.pause();
+      clickableArea.setAttribute('data-paused', 'true');
+      console.log('⏸️ Netflix video paused');
+    }
+  });
+  
+  clickableArea.addEventListener('mouseleave', () => {
+    clickableArea.style.background = 'transparent';
+    clickableArea.style.boxShadow = 'none';
+    
+    if (clickableArea.hasAttribute('data-paused')) {
+      setTimeout(() => {
+        if (videoElement) {
+          videoElement.play();
+          console.log('▶️ Netflix video resumed');
+        }
+      }, 300);
+      clickableArea.removeAttribute('data-paused');
+    }
+  });
+  
+  // Handle text selection and click
+  clickableArea.addEventListener('mouseup', (e) => {
+    if (!isExtensionActive) return;
+    
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
+    // Get selected text
+    const selection = window.getSelection();
+    const selectedTextContent = selection.toString().trim();
+    
+    console.log('🖱️ Netflix subtitle interaction:', {
+      selectedText: selectedTextContent,
+      fullText: text
+    });
+    
+    // If user selected specific text, use that; otherwise use full subtitle
+    const textToUse = selectedTextContent.length > 0 ? selectedTextContent : text;
+    
+    if (floatingPopup) {
+      floatingPopup.remove();
+      floatingPopup = null;
+    }
+    
+    if (textToUse && textToUse.length > 0) {
+      selectedText = textToUse;
+      
+      // Mark that the click was handled by Netflix overlay
+      window.netflixClickHandled = true;
+      
+      showFloatingPopup(e.clientX, e.clientY);
+      
+      // Reset after short delay
+      setTimeout(() => {
+        window.netflixClickHandled = false;
+      }, 500);
+    }
+  });
+  
+  // Prevent double-click from propagating
+  clickableArea.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  });
+  
+  overlay.appendChild(clickableArea);
+}
+
+function startNetflixSubtitleObserver() {
+  if (window.netflixObserverActive) {
+    console.log('⚠️ Netflix observer already active');
+    return;
+  }
+  
+  window.netflixObserverActive = true;
+  console.log('👀 Starting Netflix subtitle observer...');
+}
+
+// Debug
+function debugNetflixSubtitles() {
+  console.log('DEBUG: Netflix subtitle detection\n');
+  
+  const video = document.querySelector('video');
+  console.log('📹 Video element:', video);
+  console.log('  Paused:', video?.paused);
+  
+  const containers = [
+    '.player-timedtext',
+    '.player-timedtext-container',
+    '.player-timedtext-text-container',
+    '[class*="timedtext"]'
+  ];
+  
+  console.log('\n📦 Subtitle Containers:');
+  containers.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    console.log(`  ${selector}: ${elements.length} found`);
+    
+    elements.forEach((el, i) => {
+      const text = el.textContent.trim();
+      if (text) {
+        console.log(`    [${i}] Text: "${text.substring(0, 50)}"`);
+        console.log(`    [${i}] Display:`, el.style.display);
+        console.log(`    [${i}] Position:`, el.getBoundingClientRect());
+        console.log(`    [${i}] Full HTML:`, el.outerHTML.substring(0, 200));
+      }
+    });
+  });
+  
+  const overlay = document.getElementById('parla-netflix-overlay');
+  console.log('\n Overlay status:');
+  console.log('  Overlay exists:', !!overlay);
+  if (overlay) {
+    console.log('  Overlay children:', overlay.children.length);
+    if (overlay.children.length > 0) {
+      const clickable = overlay.children[0];
+      console.log('  Clickable area:', {
+        text: clickable.getAttribute('data-subtitle-text'),
+        position: clickable.style.left + ', ' + clickable.style.top,
+        size: clickable.style.width + ' x ' + clickable.style.height,
+        cursor: clickable.style.cursor
+      });
+    }
+  }
+  
+  console.log('\n🔍 Current State:');
+  console.log('  isNetflix:', isNetflix);
+  console.log('  videoElement:', videoElement);
+  console.log('  isExtensionActive:', isExtensionActive);
+  console.log('  netflixObserverActive:', window.netflixObserverActive);
+  console.log('  overlayInterval:', window.netflixOverlayInterval);
+}
+
+// Hacer la función accesible globalmente
+window.debugNetflixSubtitles = debugNetflixSubtitles;
+console.log('✅ debugNetflixSubtitles() available - Type it in console');
+
+// Limpiar interval cuando se sale
+window.addEventListener('beforeunload', () => {
+  if (window.netflixOverlayInterval) {
+    clearInterval(window.netflixOverlayInterval);
+  }
+});
+
+// Reintento si Netflix cambia de página
+window.addEventListener('popstate', () => {
+  if (isNetflix && videoElement) {
+    console.log('🔄 Netflix page changed, reinitializing...');
+    
+    // Limpiar overlay e interval anterior
+    if (window.netflixOverlayInterval) {
+      clearInterval(window.netflixOverlayInterval);
+      window.netflixOverlayInterval = null;
+    }
+    
+    const oldOverlay = document.getElementById('parla-netflix-overlay');
+    if (oldOverlay) {
+      oldOverlay.remove();
+    }
+    
+    window.netflixObserverActive = false;
+    setTimeout(() => {
+      setupNetflixIntegration();
+    }, 2000);
+  }
+});
+
+// ===========================
+// PDF INTEGRATION
+// ===========================
+function setupPDFIntegration() {
+  console.log('📄 PDF detected - Enhanced text selection enabled');
+}
+
+// ===========================
+// GENERAL TEXT SELECTION
+// ===========================
+
+function setupEventListeners() {
+  let popupTimeout;
+
+  document.addEventListener('mouseup', (e) => {
+    // Don't proceed if Netflix overlay handled the click
+    if (window.netflixClickHandled) {
+      console.log('⏭️ Skipping text selection handler - Netflix overlay active');
+      return;
+    }
+    
+    clearTimeout(popupTimeout);
+    popupTimeout = setTimeout(() => {
+      handleTextSelection(e);
+    }, 150);
+  });
+
+  document.addEventListener('keydown', handleKeyDown);
+  
+  console.log('✅ Event listeners attached');
+}
+
+
+function handleTextSelection(e) {
+  if (!isExtensionActive) {
+    console.log('Extension is inactive');
+    return;
+  }
+  
+  // if click was handled by Netflix overlay, skip
+  if (window.netflixClickHandled) {
+    console.log('🎬 Click handled by Netflix overlay - skipping');
+    return;
+  }
+  
+  // Don't show popup if clicking on the popup itself
+  if (floatingPopup && floatingPopup.contains(e.target)) {
+    console.log('🖱️ Clicked on popup itself');
+    return;
+  }
+  
+  // Don't interfere with YouTube/Netflix subtitles (handled separately)
+  // Verificar también el overlay de Netflix
+  if ((isYouTube || isNetflix) && 
+      (e.target.closest('.ytp-caption-segment, .player-timedtext, .player-timedtext-text-container, [class*="timedtext"]') ||
+       e.target.id === 'parla-netflix-overlay' ||
+       e.target.closest('#parla-netflix-overlay'))) {
+    console.log('📺 Subtitle click handled separately');
+    return;
+  }
+  
+  const selection = window.getSelection();
+  const text = selection.toString().trim();
+  
+  console.log('📝 Text selected:', text);
+  
+  if (text.length > 0) {
+    selectedText = text;
+    showFloatingPopup(e.clientX, e.clientY);
+  } else {
+    hideFloatingPopup();
+  }
+}
+
+function handleKeyDown(e) {
+  if (e.key === 'Escape') {
+    console.log('⌨️ Escape pressed - hiding popup');
+    hideFloatingPopup();
+  }
+}
+
+// ===========================
+// FLOATING POPUP
+// ===========================
+function showFloatingPopup(x, y) {
+  console.log('💬 Showing floating popup at', { x, y });
+  
+  // Remove existing popup
+  hideFloatingPopup();
+  
+  // Create popup
+  floatingPopup = document.createElement('div');
+  floatingPopup.className = 'parla-floating-popup';
+  floatingPopup.innerHTML = `
+    <div class="parla-popup-header">
+      <div class="parla-popup-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" fill="#BCA2F2"/>
+          <path d="M8 12h8M12 8v8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="parla-popup-title">Parla</span>
+      <button class="parla-popup-close" id="parla-close">×</button>
+    </div>
+    
+    <div class="parla-popup-content">
+      <div class="parla-selected-text">${escapeHtml(selectedText)}</div>
+      <div class="parla-translation-container" id="parla-translation">
+        <div class="parla-loading">
+          <div class="parla-spinner"></div>
+          <span>Traduciendo...</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="parla-popup-actions">
+      <button class="parla-action-btn parla-btn-primary" id="parla-save">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2"/>
+          <path d="M17 21v-8H7v8M7 3v5h8" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Guardar
+      </button>
+      <button class="parla-action-btn parla-btn-secondary" id="parla-speak">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Escuchar
+      </button>
+    </div>
+  `;
+  
+  // Position popup
+  document.body.appendChild(floatingPopup);
+  positionPopup(floatingPopup, x, y);
+  
+  // Animate in
+  setTimeout(() => {
+    floatingPopup.classList.add('parla-popup-visible');
+  }, 10);
+  
+  // Setup event listeners
+  floatingPopup.addEventListener('mousedown', (e) => e.stopPropagation());
+  floatingPopup.addEventListener('mouseup', (e) => e.stopPropagation());
+
+  document.getElementById('parla-close').addEventListener('click', (e) => {
+    e.stopPropagation();  
+    hideFloatingPopup();
+  });
+
+  const saveButton = document.getElementById('parla-save');
+  saveButton.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
+    saveButton.style.opacity = '0.6';
+
+    await savePhrase();
+
+    setTimeout(() => {
+      saveButton.disabled = false;
+      saveButton.style.opacity = '1';
+    }, 1000);
+  });
+
+  const speakButton = document.getElementById('parla-speak');
+  speakButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    if (speakButton.disabled) return;
+    speakButton.disabled = true;
+    speakButton.style.opacity = '0.6';
+
+    speakText();
+
+    setTimeout(() => {
+      speakButton.disabled = false;
+      speakButton.style.opacity = '1';
+    }, 1500);
+  });
+  
+  // Translate text
+  translateText(selectedText);
+  
+  console.log('✅ Popup displayed');
+}
+
+function positionPopup(popup, x, y) {
+  const rect = popup.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  
+  let left = x + 10;
+  let top = y + 10;
+  
+  if (left + rect.width > viewportWidth) {
+    left = x - rect.width - 10;
+  }
+  
+  if (top + rect.height > viewportHeight) {
+    top = y - rect.height - 10;
+  }
+  
+  left = Math.max(10, Math.min(left, viewportWidth - rect.width - 10));
+  top = Math.max(10, Math.min(top, viewportHeight - rect.height - 10));
+  
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+}
+
+function hideFloatingPopup() {
+  if (floatingPopup) {
+    floatingPopup.classList.remove('parla-popup-visible');
+    setTimeout(() => {
+      if (floatingPopup && floatingPopup.parentNode) {
+        floatingPopup.parentNode.removeChild(floatingPopup);
+      }
+      floatingPopup = null;
+    }, 200);
+  }
+}
+
+// ===========================
+// TRANSLATION
+// ===========================
+async function translateText(text) {
+  const translationContainer = document.getElementById('parla-translation');
+  
+  console.log('🌐 Translating text:', text);
+  
+  try {
+    const settings = await chrome.storage.local.get(['parla_target_language']);
+    const targetLanguage = settings.parla_target_language || 'es';
+    
+    console.log('🎯 Target language:', targetLanguage);
+    
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    const translation = await mockTranslate(text, targetLanguage);
+    
+    translationContainer.innerHTML = `
+      <div class="parla-translation-result">
+        <div class="parla-translation-label">Traducción:</div>
+        <div class="parla-translation-text">${escapeHtml(translation)}</div>
+      </div>
+    `;
+    
+    console.log('✅ Translation completed:', translation);
+  } catch (error) {
+    console.error('❌ Translation error:', error);
+    translationContainer.innerHTML = `
+      <div class="parla-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+          <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Error al traducir
+      </div>
+    `;
+  }
+}
+
+async function mockTranslate(text, targetLang) {
+  const translations = {
+    'Hello': 'Hola',
+    'Thank you': 'Gracias',
+    'How are you?': '¿Cómo estás?',
+    'Good morning': 'Buenos días',
+    'Good night': 'Buenas noches'
+  };
+  
+  return translations[text] || `[${targetLang}] ${text}`;
+}
+
+// ===========================
+// ACTIONS
+// ===========================
+async function savePhrase() {
+  const translationText = document.querySelector('.parla-translation-text');
+  if (!translationText) return;
+  
+  console.log('💾 Saving phrase...');
+  
+  const phrase = {
+    id: Date.now().toString(),
+    original: selectedText,
+    translation: translationText.textContent,
+    context: getContext(),
+    timestamp: Date.now(),
+    sourceUrl: window.location.hostname,
+    pronunciation: ''
+  };
+  
+  try {
+    const result = await chrome.storage.local.get(['parla_phrases']);
+    const phrases = result.parla_phrases || [];
+    phrases.unshift(phrase);
+    await chrome.storage.local.set({ parla_phrases: phrases });
+    
+    chrome.runtime.sendMessage({ 
+      action: 'phraseAdded',
+      phrase: phrase 
+    }).catch(() => console.log('Popup not open'));
+    
+    console.log('✅ Phrase saved:', phrase);
+    
+    showNotification('✓ Frase guardada');
+    hideFloatingPopup();
+  } catch (error) {
+    console.error('❌ Error saving phrase:', error);
+    showNotification('❌ Error al guardar');
+  }
+}
+
+function speakText() {
+  console.log('🔊 Speaking text:', selectedText);
+  
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(selectedText);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    speechSynthesis.speak(utterance);
+    
+    showNotification('🔊 Reproduciendo...');
+  } else {
+    console.log('❌ Speech synthesis not available');
+    showNotification('Text-to-speech no disponible');
+  }
+}
+
+function getContext() {
+  if (isYouTube) return 'YouTube';
+  if (isNetflix) return 'Netflix';
+  if (isPDF) return 'PDF';
+  return window.location.hostname;
+}
+
+// ===========================
+// NOTIFICATIONS
+// ===========================
+function showNotification(message) {
+  console.log('📢 Showing notification:', message);
+  
+  const notification = document.createElement('div');
+  notification.className = 'parla-notification';
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.classList.add('parla-notification-visible');
+  }, 10);
+  
+  setTimeout(() => {
+    notification.classList.remove('parla-notification-visible');
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 2000);
+}
+
+// ===========================
+// STYLES INJECTION
+// ===========================
+function injectStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    /* Parla Floating Popup */
+    .parla-floating-popup {
+      position: fixed;
+      width: 320px;
+      background: #ecf0f3;
+      border-radius: 16px;
+      box-shadow: 
+        8px 8px 16px #d1d9e6,
+        -8px -8px 16px #ffffff;
+      z-index: 2147483647 !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      opacity: 0;
+      transform: scale(0.9) translateY(-10px);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+    }
+    
+    .parla-popup-visible {
+      opacity: 1 !important;
+      transform: scale(1) translateY(0) !important;
+      pointer-events: all !important;
+    }
+    
+    .parla-popup-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #200940 0%, #8A76A6 100%);
+      border-radius: 16px 16px 0 0;
+    }
+    
+    .parla-popup-logo {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .parla-popup-title {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .parla-popup-close {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      border-radius: 50%;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .parla-popup-close:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.1);
+    }
+    
+    .parla-popup-content {
+      padding: 16px;
+    }
+    
+    .parla-selected-text {
+      padding: 12px;
+      background: #ffffff;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #200940;
+      font-weight: 500;
+      margin-bottom: 12px;
+      box-shadow: 
+        inset 2px 2px 4px #d1d9e6,
+        inset -2px -2px 4px #ffffff;
+    }
+    
+    .parla-translation-container {
+      min-height: 60px;
+    }
+    
+    .parla-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      color: #8A76A6;
+      font-size: 12px;
+    }
+    
+    .parla-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #EDDEFD;
+      border-top-color: #BCA2F2;
+      border-radius: 50%;
+      animation: parla-spin 0.6s linear infinite;
+    }
+    
+    @keyframes parla-spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .parla-translation-result {
+      padding: 12px;
+      background: linear-gradient(135deg, rgba(188, 162, 242, 0.1) 0%, rgba(138, 118, 166, 0.1) 100%);
+      border-radius: 10px;
+      border: 1px solid #EDDEFD;
+    }
+    
+    .parla-translation-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #8A76A6;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    
+    .parla-translation-text {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #200940;
+      font-weight: 500;
+    }
+    
+    .parla-error {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      color: #ef4444;
+      font-size: 12px;
+    }
+    
+    .parla-popup-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 12px 16px 16px;
+    }
+    
+    .parla-action-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    
+    .parla-btn-primary {
+      background: linear-gradient(135deg, #BCA2F2 0%, #8A76A6 100%);
+      color: white;
+      box-shadow: 
+        4px 4px 8px #d1d9e6,
+        -4px -4px 8px #ffffff;
+    }
+    
+    .parla-btn-primary:hover {
+      transform: scale(0.98);
+      box-shadow: 
+        2px 2px 4px #d1d9e6,
+        -2px -2px 4px #ffffff;
+    }
+    
+    .parla-btn-secondary {
+      background: #ecf0f3;
+      color: #8A76A6;
+      box-shadow: 
+        4px 4px 8px #d1d9e6,
+        -4px -4px 8px #ffffff;
+    }
+    
+    .parla-btn-secondary:hover {
+      box-shadow: 
+        inset 2px 2px 4px #d1d9e6,
+        inset -2px -2px 4px #ffffff;
+    }
+    
+    /* Notification */
+    .parla-notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #200940 0%, #8A76A6 100%);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 10px;
+      box-shadow: 
+        4px 4px 8px #d1d9e6,
+        -4px -4px 8px #ffffff;
+      z-index: 2147483647 !important;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateX(400px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    .parla-notification-visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    
+    /* YouTube subtitle enhancement */
+    .ytp-caption-segment[data-parla-listener="true"] {
+      transition: all 0.2s;
+    }
+    
+    .ytp-caption-segment[data-parla-listener="true"]:hover {
+      background: rgba(188, 162, 242, 0.2) !important;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    
+  `;
+  
+  document.head.appendChild(style);
+  console.log('✅ Styles injected');
+}
+
+
+
+// ===========================
+// UTILITIES
+// ===========================
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ===========================
+// START
+// ===========================
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+const observer = new MutationObserver(() => {
+  if (floatingPopup && !document.contains(floatingPopup)) {
+    console.warn("⚠️ Popup eliminado por el sitio, recreando...");
+    floatingPopup = null;
+  }
+});
+observer.observe(document.body, { childList: true, subtree: true });
