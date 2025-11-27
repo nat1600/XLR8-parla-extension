@@ -1,332 +1,281 @@
 // modules/platforms/netflix.js
 
-// Module to handle Netflix subtitle interactions with an overlay
 
 const ParlaNetflix = {
     videoElement: null,
-    overlayInterval: null,
-  
-    // Setup function to initialize subtitle detection
-    setup() {
-      console.log('🎬 Netflix detected - Setting up subtitle detection with overlay');
-      this.waitForPlayer();
-    },
-  
-    // Waits for the video player to load
-    waitForPlayer() {
-      let attempts = 0;
-      const maxAttempts = 50;
-      
-      const checkInterval = setInterval(() => {
-        attempts++;
-        this.videoElement = document.querySelector('video');
-        const subtitlesContainer = document.querySelector(
-          '.player-timedtext, .player-timedtext-container, [class*="timedtext"]'
-        );
-        
-        console.log(`🔍 Netflix attempt ${attempts}: Video=${!!this.videoElement}, Subtitles=${!!subtitlesContainer}`);
-        
-        if (this.videoElement) {
-          console.log('✅ Netflix video found');
-          clearInterval(checkInterval);
-          setTimeout(() => {
-            this.startSubtitleObserver();
-            this.createOverlay();
-          }, 1000);
-        } else if (attempts >= maxAttempts) {
-          console.log('⏱️ Netflix timeout');
-          clearInterval(checkInterval);
-        }
-      }, 500);
-    },
-  
-    // Creates an overlay to capture subtitle interactions
-    createOverlay() {
-      if (document.getElementById('parla-netflix-overlay')) {
-        console.log('⚠️ Overlay already exists');
-        return;
-      }
-      
-      console.log('🎯 Creating Netflix subtitle overlay...');
-      
-      const overlay = document.createElement('div');
-      overlay.id = 'parla-netflix-overlay';
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 2147483645;
-      `;
-      
-      document.body.appendChild(overlay);
-      
-      // Update every 100ms
-      this.overlayInterval = setInterval(() => {
-        if (!ParlaSettings.isExtensionActive) return;
-        this.updateOverlay(overlay);
-      }, 100);
-      
-      //Use DOM as a backup for changes
-      const subtitleObserver = new MutationObserver(() => {
-        this.updateOverlay(overlay);
-      });
-      
-      const timedTextContainer = document.querySelector('.player-timedtext');
-      if (timedTextContainer) {
-        subtitleObserver.observe(timedTextContainer, {
-          childList: true,
-          subtree: true,
-          characterData: true,
-          attributes: true
-        });
-      }
-      
-      this.updateOverlay(overlay);
-      
-      console.log('✅ Netflix overlay created with interval updater');
-    },
-  
-    //Updates the overlay position and content
-    updateOverlay(overlay) {
-      if (!overlay || !overlay.parentNode) return;
-      
-      const subtitleContainer = document.querySelector('.player-timedtext-text-container');
-      
-      // Clear overlay if no subtitles
-      if (!subtitleContainer || 
-          !subtitleContainer.textContent.trim() || 
-          subtitleContainer.style.display === 'none') {
-        if (overlay.children.length > 0) {
-          overlay.innerHTML = '';
-        }
-        return;
-      }
-      
-      const text = subtitleContainer.textContent.trim();
-      const rect = subtitleContainer.getBoundingClientRect();
-      
-      // Verify if subtitle is visible
-      const existingArea = overlay.querySelector('[data-subtitle-text]');
-      if (existingArea && existingArea.getAttribute('data-subtitle-text') === text) {
-        // Update position if changed
-        const currentLeft = parseInt(existingArea.style.left);
-        const currentTop = parseInt(existingArea.style.top);
-        
-        if (Math.abs(currentLeft - rect.left) > 5 || Math.abs(currentTop - rect.top) > 5) {
-          existingArea.style.left = `${rect.left}px`;
-          existingArea.style.top = `${rect.top}px`;
-          existingArea.style.width = `${rect.width}px`;
-          existingArea.style.height = `${rect.height}px`;
-        }
-        return;
-      }
-      
-      // Clean existing areas
-      overlay.innerHTML = '';
-      
-      // Create clickable area
-      const clickableArea = document.createElement('div');
-      clickableArea.style.cssText = `
-        position: absolute;
-        left: ${rect.left}px;
-        top: ${rect.top}px;
-        width: ${rect.width}px;
-        height: ${rect.height}px;
-        pointer-events: auto;
-        cursor: text;
-        background: transparent;
-        transition: background 0.2s;
-        border-radius: 6px;
-        padding: 6px 10px;
-        box-sizing: border-box;
-        user-select: text;
-        -webkit-user-select: text;
-        -moz-user-select: text;
-        -ms-user-select: text;
-      `;
-      
-      clickableArea.setAttribute('data-subtitle-text', text);
-      
-      // Add invisible text for selection
-      clickableArea.textContent = text;
-      clickableArea.style.color = 'transparent';
-  
-      // Obtain subtitle styles
-      const subtitleStyles = window.getComputedStyle(subtitleContainer);
-      const baseFontSize = parseFloat(subtitleStyles.fontSize);
-  
-      clickableArea.style.fontSize = `${baseFontSize * 3.5}px`;
-      clickableArea.style.fontFamily = subtitleStyles.fontFamily;
-      clickableArea.style.fontWeight = subtitleStyles.fontWeight;
-      clickableArea.style.textAlign = subtitleStyles.textAlign;
-      
-      const baseLineHeight = parseFloat(subtitleStyles.lineHeight);
-      clickableArea.style.lineHeight = baseLineHeight ? `${baseLineHeight * 5.5}px` : '5.5';
-  
-      clickableArea.style.display = 'flex';
-      clickableArea.style.alignItems = 'center';
-      clickableArea.style.justifyContent = 'center';
-      
-      // Hover effects and auto-pause
-      clickableArea.addEventListener('mouseenter', () => {
-        clickableArea.style.background = 'rgba(188, 162, 242, 0.2)';
-        clickableArea.style.boxShadow = '0 2px 8px rgba(188, 162, 242, 0.3)';
-        
-        if (ParlaSettings.autoPauseEnabled && this.videoElement && !this.videoElement.paused) {
-          this.videoElement.pause();
-          clickableArea.setAttribute('data-paused', 'true');
-          console.log('⏸️ Netflix video paused');
-        }
-      });
-      
-      clickableArea.addEventListener('mouseleave', () => {
-        clickableArea.style.background = 'transparent';
-        clickableArea.style.boxShadow = 'none';
-        
-        if (clickableArea.hasAttribute('data-paused')) {
-          setTimeout(() => {
-            if (this.videoElement) {
-              this.videoElement.play();
-              console.log('▶️ Netflix video resumed');
+    observer: null,
+    lastText: "",
+    staticContainer: null,
+
+    // ---------------------------
+    // 1. Inject CSS
+    // ---------------------------
+    injectCSS() {
+        if (document.getElementById("parla-netflix-style")) return;
+
+        const style = document.createElement("style");
+        style.id = "parla-netflix-style";
+        style.innerHTML = `
+
+            /* ===========================================
+               GLOBAL FIX — ALLOW TEXT SELECTION ON NETFLIX
+               =========================================== */
+
+            body, html, div, span, p, section, article, * {
+                -webkit-user-select: text !important;
+                -moz-user-select: text !important;
+                -ms-user-select: text !important;
+                user-select: text !important;
             }
-          }, 300);
-          clickableArea.removeAttribute('data-paused');
-        }
-      });
-      
-      // Manage click events
-      clickableArea.addEventListener('mouseup', (e) => {
-        if (!ParlaSettings.isExtensionActive) return;
-        
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        const selection = window.getSelection();
-        const selectedTextContent = selection.toString().trim();
-        
-        console.log('🖱️ Netflix subtitle interaction:', {
-          selectedText: selectedTextContent,
-          fullText: text
+
+            /* Netflix blocks selection in multiple layers */
+            .player-timedtext, 
+            .player-timedtext-container, 
+            .player-timedtext-text-container,
+            .player-overlay,
+            .ltr-1st24vp {
+                -webkit-user-select: text !important;
+                user-select: text !important;
+            }
+
+            /* ===========================================
+               STATIC SUBTITLE CONTAINER
+               =========================================== */
+
+            #parla-netflix-static-container {
+                position: fixed !important;
+                bottom: 120px !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+
+                background: rgba(8, 8, 12, 0.95) !important;
+                backdrop-filter: blur(16px) saturate(180%) !important;
+
+                padding: 20px 32px !important;
+                border-radius: 16px !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+
+                max-width: 90vw !important;
+                min-width: 300px !important;
+                width: fit-content !important;
+
+                z-index: 2147483645 !important;
+                pointer-events: auto !important;
+
+                display: none !important;
+                justify-content: center !important;
+                align-items: center !important;
+
+                transition: opacity 0.2s ease !important;
+
+                user-select: text !important;
+            }
+
+            #parla-netflix-static-container.active {
+                display: flex !important;
+            }
+
+            #parla-netflix-static-container .subtitle-text {
+                font-size: 24px !important;
+                font-weight: 700 !important;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+                color: #ffffff !important;
+                line-height: 1.6 !important;
+                text-align: center !important;
+
+                user-select: text !important;
+                cursor: text !important;
+
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                justify-content: center !important;
+            }
+
+            /* Each selectable word */
+            #parla-netflix-static-container .subtitle-word {
+                display: inline-block !important;
+                padding: 4px 8px !important;
+                border-radius: 6px !important;
+                cursor: pointer !important;
+                user-select: text !important;
+                transition: all 0.18s ease !important;
+            }
+
+            #parla-netflix-static-container .subtitle-word:hover {
+                background: rgba(74, 144, 226, 0.25) !important;
+                transform: translateY(-1px) !important;
+                box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3) !important;
+            }
+
+            #parla-netflix-static-container .subtitle-word:active {
+                transform: translateY(0) !important;
+                background: rgba(74, 144, 226, 0.35) !important;
+            }
+
+            /* Text selection highlight */
+            #parla-netflix-static-container *::selection {
+                background: rgba(74, 144, 226, 0.85) !important;
+                color: white !important;
+            }
+
+            /* Hide original subtitles */
+            .player-timedtext,
+            .player-timedtext-container,
+            .player-timedtext-text-container {
+                display: none !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+        `;
+
+        document.head.appendChild(style);
+
+        /* Reapply selection in case Netflix tries to overwrite it */
+        setInterval(() => {
+            document.querySelectorAll("#parla-netflix-static-container, #parla-netflix-static-container *")
+                .forEach(el => {
+                    el.style.userSelect = "text";
+                    el.style.webkitUserSelect = "text";
+                });
+        }, 500);
+    },
+
+    // ---------------------------
+    // 2. Create static container
+    // ---------------------------
+    createStaticContainer() {
+        let c = document.getElementById("parla-netflix-static-container");
+        if (c) return c;
+
+        c = document.createElement("div");
+        c.id = "parla-netflix-static-container";
+        document.body.appendChild(c);
+        return c;
+    },
+
+    // ---------------------------
+    // 3. Process subtitles into words
+    // ---------------------------
+    formatWords(text) {
+        return text
+            .trim()
+            .split(/\s+/)
+            .map(w => `<span class="subtitle-word">${w}</span>`)
+            .join(" ");
+    },
+
+    // ---------------------------
+    // 4. Show subtitle
+    // ---------------------------
+    showSubtitle(text) {
+        if (!this.staticContainer) this.staticContainer = this.createStaticContainer();
+        this.staticContainer.innerHTML = `<div class="subtitle-text">${this.formatWords(text)}</div>`;
+        this.staticContainer.classList.add("active");
+        this.attachWordEvents();
+    },
+
+    hideSubtitle() {
+        this.staticContainer?.classList.remove("active");
+    },
+
+    // ---------------------------
+    // 5. Word events
+    // ---------------------------
+    attachWordEvents() {
+        if (!this.staticContainer) return;
+
+        const words = this.staticContainer.querySelectorAll(".subtitle-word");
+
+        words.forEach(word => {
+            word.addEventListener("mouseup", e => this.onWordClick(e));
         });
-        
-        const textToUse = selectedTextContent.length > 0 ? selectedTextContent : text;
-        
-        if (textToUse && textToUse.length > 0) {
-          window.netflixClickHandled = true;
-          
-          ParlaPopup.show(e.clientX, e.clientY, textToUse, 'Netflix');
-          
-          setTimeout(() => {
-            window.netflixClickHandled = false;
-          }, 500);
+
+        this.staticContainer.addEventListener("mouseenter", () => this.pauseVideo());
+        this.staticContainer.addEventListener("mouseleave", () => this.resumeVideo());
+    },
+
+    onWordClick(e) {
+        if (!ParlaSettings?.isExtensionActive) return;
+
+        const selected = window.getSelection().toString().trim();
+        if (selected.length > 1) {
+            ParlaPopup?.show(e.clientX, e.clientY, selected, "Netflix");
+            return;
         }
-      });
-      
-      clickableArea.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      });
-      
-      overlay.appendChild(clickableArea);
+
+        const word = e.target.textContent.trim();
+        if (word) {
+            ParlaPopup?.show(e.clientX, e.clientY, word, "Netflix");
+            return;
+        }
     },
-  
-    // Starts observing subtitle changes
-    startSubtitleObserver() {
-      if (window.netflixObserverActive) {
-        console.log('⚠️ Netflix observer already active');
-        return;
-      }
-      
-      window.netflixObserverActive = true;
-      console.log('👀 Starting Netflix subtitle observer...');
+
+    // ---------------------------
+    // 6. Auto pause
+    // ---------------------------
+    pauseVideo() {
+        if (this.videoElement && !this.videoElement.paused) {
+            this.videoElement.pause();
+            this.staticContainer?.setAttribute("data-paused", "true");
+        }
     },
+
+    resumeVideo() {
+        setTimeout(() => {
+            if (this.videoElement && this.staticContainer?.hasAttribute("data-paused")) {
+                this.videoElement.play();
+                this.staticContainer.removeAttribute("data-paused");
+            }
+        }, 250);
+    },
+
+    // ---------------------------
+    // 7. Observe subtitle changes
+    // ---------------------------
+    observeNetflixSubtitles() {
+        const target = document.body;
+
+        this.observer = new MutationObserver(() => {
+            const el = document.querySelector(".player-timedtext-text-container");
+
+            if (!el) return this.hideSubtitle();
+
+            const text = el.textContent.trim();
+            if (!text || text === this.lastText) return;
+
+            this.lastText = text;
+            this.showSubtitle(text);
+        });
+
+        this.observer.observe(target, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+    },
+
+    // ---------------------------
+    // 8. Setup
+    // ---------------------------
+    setup() {
   
-    // Cleans up on unload or navigation
+        this.injectCSS();
+
+        const interval = setInterval(() => {
+            this.videoElement = document.querySelector("video");
+            if (this.videoElement) {
+                clearInterval(interval);
+                this.observeNetflixSubtitles();
+            }
+        }, 400);
+    },
+
     cleanup() {
-      if (this.overlayInterval) {
-        clearInterval(this.overlayInterval);
-        this.overlayInterval = null;
-      }
-      
-      const overlay = document.getElementById('parla-netflix-overlay');
-      if (overlay) {
-        overlay.remove();
-      }
-      
-      window.netflixObserverActive = false;
+        if (this.observer) this.observer.disconnect();
+        if (this.staticContainer) this.staticContainer.remove();
     }
-  };
-  
-  // Expose ParlaNetflix globally
-  window.ParlaNetflix = ParlaNetflix;
-  
-  // Debugging function:
-  window.debugNetflixSubtitles = function() {
-    console.log('DEBUG: Netflix subtitle detection\n');
-    
-    const video = document.querySelector('video');
-    console.log('🔹 Video element:', video);
-    console.log('  Paused:', video?.paused);
-    
-    const containers = [
-      '.player-timedtext',
-      '.player-timedtext-container',
-      '.player-timedtext-text-container',
-      '[class*="timedtext"]'
-    ];
-    
-    console.log('\n📦 Subtitle Containers:');
-    containers.forEach(selector => {
-      const elements = document.querySelectorAll(selector);
-      console.log(`  ${selector}: ${elements.length} found`);
-      
-      elements.forEach((el, i) => {
-        const text = el.textContent.trim();
-        if (text) {
-          console.log(`    [${i}] Text: "${text.substring(0, 50)}"`);
-          console.log(`    [${i}] Display:`, el.style.display);
-          console.log(`    [${i}] Position:`, el.getBoundingClientRect());
-        }
-      });
-    });
-    
-    const overlay = document.getElementById('parla-netflix-overlay');
-    console.log('\n🎯 Overlay status:');
-    console.log('  Overlay exists:', !!overlay);
-    if (overlay) {
-      console.log('  Overlay children:', overlay.children.length);
-      if (overlay.children.length > 0) {
-        const clickable = overlay.children[0];
-        console.log('  Clickable area:', {
-          text: clickable.getAttribute('data-subtitle-text'),
-          position: clickable.style.left + ', ' + clickable.style.top,
-          size: clickable.style.width + ' x ' + clickable.style.height
-        });
-      }
-    }
-    
-    console.log('\n📊 Current State:');
-    console.log('  videoElement:', ParlaNetflix.videoElement);
-    console.log('  isExtensionActive:', ParlaSettings.isExtensionActive);
-    console.log('  netflixObserverActive:', window.netflixObserverActive);
-    console.log('  overlayInterval:', ParlaNetflix.overlayInterval);
-  };
-  
-  //  Cleanup on unload
-  window.addEventListener('beforeunload', () => {
-    ParlaNetflix.cleanup();
-  });
-  
-  // Reinitialize on navigation
-  window.addEventListener('popstate', () => {
-    if (window.location.href.includes('netflix.com/watch') && ParlaNetflix.videoElement) {
-      console.log('🔄 Netflix page changed, reinitializing...');
-      ParlaNetflix.cleanup();
-      setTimeout(() => {
-        ParlaNetflix.setup();
-      }, 2000);
-    }
-  });
+};
+
+window.ParlaNetflix = ParlaNetflix;

@@ -1,272 +1,312 @@
 // content/modules/platforms/youtube.js
-// Module to handle YouTube subtitle interactions
+
 
 const ParlaYouTube = {
     videoElement: null,
-    clickTimeout: null,
     lastClickTime: 0,
-  
-    // Setup function to initialize subtitle detection
-    setup() {
-      console.log('🎥 YouTube detected - Setting up subtitle detection');
-      this.waitForPlayer();
-    },
-  
-    // Waits for the video player to load
-    waitForPlayer() {
-      let attempts = 0;
-      const maxAttempts = 50;
-      
-      const checkInterval = setInterval(() => {
-        attempts++;
-        
-        this.videoElement = document.querySelector('video');
-        const captionWindow = document.querySelector('.caption-window, .ytp-caption-window-container');
-        
-        console.log(`🔍 Attempt ${attempts}: Video=${!!this.videoElement}, Subtitles=${!!captionWindow}`);
-        
-        if (this.videoElement) {
-          console.log('✅ Video found');
-          clearInterval(checkInterval);
-          this.startSubtitleObserver();
-        } else if (attempts >= maxAttempts) {
-          console.log('❌ Timeout: No video found');
-          clearInterval(checkInterval);
-        }
-      }, 500);
-    },
-  
-    // Begins observing for subtitle elements
-    startSubtitleObserver() {
-      console.log('👀 Initialize MutationObserver to detect subtitles...');
-      
-      const observer = new MutationObserver(() => {
-        const subtitleElements = document.querySelectorAll(
-          '.ytp-caption-segment, .captions-text span, .ytp-caption-window-container span'
+    observer: null,
+    subtitleContainer: null,
+
+    // Selector centralizado para subtítulos
+    getSubtitleElements() {
+        return document.querySelectorAll(
+            '.ytp-caption-segment, .captions-text span, .ytp-caption-window-container span, #eLangSubs'
         );
-        
-        if (subtitleElements.length > 0) {
-          console.log(`✅ Found ${subtitleElements.length} subtitles`);
-          this.attachSubtitleListeners();
+    },
+
+    // Crear contenedor estático personalizado
+    createStaticContainer() {
+        if (document.getElementById('parla-static-subtitle-container')) {
+            return document.getElementById('parla-static-subtitle-container');
         }
-      });
-      
-      const targetNode = document.querySelector('#movie_player') || document.body;
-      observer.observe(targetNode, { childList: true, subtree: true });
-      
-      console.log('✅ Observer configured');
-      this.attachSubtitleListeners();
+
+        const container = document.createElement('div');
+        container.id = 'parla-static-subtitle-container';
+        document.body.appendChild(container);
+        return container;
     },
-  
-    // Attach event listeners to subtitle elements
-    attachSubtitleListeners() {
-      console.log('🔗 Attach event listeners to subtitle elements...');
-      
-      const selectors = [
-        '.ytp-caption-segment',
-        '.captions-text span',
-        '.ytp-caption-window-container span'
-      ];
-      
-      let listenersAdded = 0;
-      
-      selectors.forEach(selector => {
-        const elements = document.querySelectorAll(selector);
-        
-        elements.forEach(subtitle => {
-          if (!subtitle.hasAttribute('data-parla-listener')) {
-            subtitle.setAttribute('data-parla-listener', 'true');
-            subtitle.style.cursor = 'pointer';
-            subtitle.style.userSelect = 'text';
-            subtitle.style.webkitUserSelect = 'text';
-            subtitle.style.mozUserSelect = 'text';
-            
-            // Use capture phase to catch event first
-            subtitle.addEventListener('mouseenter', (e) => this.handleHover(e), true);
-            subtitle.addEventListener('mouseleave', (e) => this.handleLeave(e), true);
-            subtitle.addEventListener('click', (e) => this.handleClick(e), true);
-            
-            listenersAdded++;
-          }
-        });
-      });
-      
-      if (listenersAdded > 0) {
-        console.log(`✅ ${listenersAdded} Listeners added to subtitles`);
-      }
-      
-      if (!window.parlaYTObserverActive) {
-        window.parlaYTObserverActive = true;
-        this.setupContinuousObserver();
-      }
+
+    // Inyectar CSS mejorado estilo eLang
+    injectSubtitleCSS() {
+        if (document.getElementById('parla-youtube-style')) return;
+
+        const style = document.createElement('style');
+        style.id = 'parla-youtube-style';
+        style.innerHTML = `
+       
+            #parla-static-subtitle-container {
+                position: fixed !important;
+                bottom: 120px !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                
+                background: rgba(8, 8, 12, 0.95) !important;
+                backdrop-filter: blur(16px) saturate(180%) !important;
+                
+                padding: 20px 32px !important;
+                border-radius: 16px !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+                
+                max-width: 90vw !important;
+                min-width: 300px !important;
+                width: fit-content !important;
+                
+                z-index: 9999999 !important;
+                pointer-events: auto !important;
+                
+                display: none !important;
+                justify-content: center !important;
+                align-items: center !important;
+                
+                transition: opacity 0.2s ease !important;
+            }
+
+            #parla-static-subtitle-container.active {
+                display: flex !important;
+            }
+
+            #parla-static-subtitle-container .subtitle-text {
+                font-size: 24px !important;
+                font-weight: 700 !important;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif !important;
+                color: #ffffff !important;
+                line-height: 1.6 !important;
+                text-align: center !important;
+                
+                user-select: text !important;
+                cursor: text !important;
+                
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                justify-content: center !important;
+            }
+
+            /* Cada palabra como elemento seleccionable */
+            #parla-static-subtitle-container .subtitle-word {
+                display: inline-block !important;
+                padding: 4px 8px !important;
+                border-radius: 6px !important;
+                user-select: text !important;
+                cursor: text !important;
+                transition: background 0.15s ease !important;
+            }
+
+            #parla-static-subtitle-container .subtitle-word:hover {
+                background: rgba(255, 255, 255, 0.15) !important;
+            }
+
+            /* Selección visual mejorada */
+            #parla-static-subtitle-container *::selection {
+                background: rgba(74, 144, 226, 0.85) !important;
+                color: white !important;
+            }
+
+            /* Ocultar subtítulos originales de YouTube */
+            .ytp-caption-window-container,
+            .caption-window,
+            .ytp-caption-segment {
+                display: none !important;
+            }
+
+            #eLangSubsWrapper,
+            #eLangSubs {
+                display: none !important;
+            }
+
+            #parla-static-subtitle-container .subtitle-word {
+                display: inline-block !important;
+                padding: 4px 8px !important;
+                border-radius: 6px !important;
+                user-select: text !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+                position: relative !important;
+            }
+
+            #parla-static-subtitle-container .subtitle-word:hover {
+                background: rgba(74, 144, 226, 0.25) !important;
+                transform: translateY(-1px) !important;
+                box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3) !important;
+            }
+
+            #parla-static-subtitle-container .subtitle-word:active {
+                transform: translateY(0) !important;
+                background: rgba(74, 144, 226, 0.35) !important;
+            }
+        `;
+
+        document.head.appendChild(style);
     },
-  
-    // Configure continuous observation for dynamic subtitle changes
-    setupContinuousObserver() {
-      const observer = new MutationObserver(() => {
-        const subtitleElements = document.querySelectorAll(
-          '.ytp-caption-segment, .captions-text span, .ytp-caption-window-container span'
-        );
-        
-        subtitleElements.forEach(subtitle => {
-          if (!subtitle.hasAttribute('data-parla-listener')) {
-            subtitle.setAttribute('data-parla-listener', 'true');
-            subtitle.style.cursor = 'pointer';
-            subtitle.style.userSelect = 'text';
-            subtitle.style.webkitUserSelect = 'text';
-            subtitle.style.mozUserSelect = 'text';
-            
-            subtitle.addEventListener('mouseenter', (e) => this.handleHover(e), true);
-            subtitle.addEventListener('mouseleave', (e) => this.handleLeave(e), true);
-            subtitle.addEventListener('click', (e) => this.handleClick(e), true);
-            
-            console.log('➕ Listener added to new subtitle');
-          }
-        });
-      });
-      
-      const captionContainers = document.querySelectorAll(
-        '.caption-window, .ytp-caption-window-container, .captions-text'
-      );
-      
-      captionContainers.forEach(container => {
-        observer.observe(container, {
-          childList: true,
-          subtree: true,
-          characterData: true
-        });
-      });
-      
-      if (captionContainers.length === 0) {
-        const player = document.querySelector('#movie_player');
-        if (player) {
-          observer.observe(player, { childList: true, subtree: true });
-          console.log('👀 Observing the whole player for subtitle changes');
+
+    // Procesar texto en palabras individuales
+    processTextToWords(text) {
+        return text
+            .trim()
+            .split(/\s+/)
+            .map(word => `<span class="subtitle-word">${word}</span>`)
+            .join(' ');
+    },
+
+    // Mostrar subtítulo en contenedor estático
+    showStaticSubtitle(text) {
+        if (!this.subtitleContainer) {
+            this.subtitleContainer = this.createStaticContainer();
         }
-      }
+
+        const processedText = this.processTextToWords(text);
+        this.subtitleContainer.innerHTML = `<div class="subtitle-text">${processedText}</div>`;
+        this.subtitleContainer.classList.add('active');
+
+        // Adjuntar listeners a las palabras
+        this.attachWordListeners();
     },
-  
-    // Handles when the cursor hovers over a subtitle
-    handleHover(e) {
-      if (!ParlaSettings.isExtensionActive || !ParlaSettings.autoPauseEnabled) return;
-      
-      console.log('🖱️ Subtitle hover detected');
-      
-      if (this.videoElement && !this.videoElement.paused) {
-        this.videoElement.pause();
-        e.currentTarget.setAttribute('data-parla-paused', 'true');
-        console.log('⏸️ Video paused');
-      }
+
+    // Ocultar subtítulo estático
+    hideStaticSubtitle() {
+        if (this.subtitleContainer) {
+            this.subtitleContainer.classList.remove('active');
+        }
     },
-  
-    // Handles when the cursor leaves a subtitle
-    handleLeave(e) {
-      if (!ParlaSettings.isExtensionActive || !ParlaSettings.autoPauseEnabled) return;
-      
-      const element = e.currentTarget;
-      if (element && element.hasAttribute('data-parla-paused')) {
+
+    // Adjuntar listeners a palabras individuales
+    attachWordListeners() {
+        const words = this.subtitleContainer?.querySelectorAll('.subtitle-word');
+        if (!words) return;
+
+        words.forEach(word => {
+            word.addEventListener('mouseup', e => this.handleWordClick(e));
+        });
+
+        // Listener para el contenedor completo
+        this.subtitleContainer.addEventListener('mouseenter', () => this.pauseVideo());
+        this.subtitleContainer.addEventListener('mouseleave', () => this.resumeVideo());
+    },
+
+    // Manejar clic en palabra
+    handleWordClick(e) {
+        if (!ParlaSettings?.isExtensionActive) return;
+
+        const now = Date.now();
+        if (now - this.lastClickTime < 250) return;
+        this.lastClickTime = now;
+
+        // Detectar selección manual
+        const manual = window.getSelection().toString().trim();
+        if (manual.length > 1) {
+            ParlaPopup?.show(e.clientX, e.clientY, manual, "YouTube");
+            return;
+        }
+
+        // Modo quick select: palabra individual
+        if (ParlaSettings.quickSelectMode) {
+            const word = e.target.textContent.trim();
+            if (word) {
+                ParlaPopup?.show(e.clientX, e.clientY, word, "YouTube");
+                return;
+            }
+        }
+
+        // Fallback: texto completo
+        const fullText = this.subtitleContainer?.textContent.trim();
+        if (fullText) {
+            ParlaPopup?.show(e.clientX, e.clientY, fullText, "YouTube");
+        }
+    },
+
+    // Pausar video
+    pauseVideo() {
+        if (this.videoElement && !this.videoElement.paused) {
+            this.videoElement.pause();
+            this.subtitleContainer?.setAttribute('data-parla-paused', 'true');
+        }
+    },
+
+    // Reanudar video
+    resumeVideo() {
         setTimeout(() => {
-          if (this.videoElement && element && element.isConnected) {
-            this.videoElement.play();
-            console.log('▶️ Video resumed');
-            element.removeAttribute('data-parla-paused');
-          }
+            if (this.videoElement && this.subtitleContainer?.hasAttribute('data-parla-paused')) {
+                this.videoElement.play();
+                this.subtitleContainer.removeAttribute('data-parla-paused');
+            }
         }, 300);
-      }
     },
-  
-    // Handles click events on subtitles
-    handleClick(e) {
-      if (!ParlaSettings.isExtensionActive) return;
-      
-      // Debounce: prevent multiple clicks within 500ms
-      const now = Date.now();
-      if (now - this.lastClickTime < 500) {
-        console.log('⏭️ Click debounced (too fast)');
-        return;
-      }
-      this.lastClickTime = now;
-      
-      // Stop propagation immediately
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      
-      // Clear any pending timeout
-      if (this.clickTimeout) {
-        clearTimeout(this.clickTimeout);
-      }
-      
-      // Delay execution to ensure selection is ready
-      this.clickTimeout = setTimeout(() => {
-        const subtitle = e.target;
-        
-        // Try to get selected text first
-        const selection = window.getSelection();
-        let text = selection.toString().trim();
-        
-        // If no text is selected, use the full subtitle text
-        if (!text || text.length === 0) {
-          // Find the actual subtitle element (might be nested)
-          const subtitleElement = subtitle.closest('[data-parla-listener="true"]') || subtitle;
-          text = subtitleElement.textContent.trim();
-          console.log('📝 Using full subtitle text:', text);
-        } else {
-          console.log('📝 Using selected text:', text);
+
+    // Inicialización
+    setup() {
+        this.injectSubtitleCSS();
+        this.subtitleContainer = this.createStaticContainer();
+
+        document.addEventListener("selectionchange", () => {
+            const s = window.getSelection().toString().trim();
+            if (s.length > 0) ParlaPopup?.hide();
+        });
+
+        this.waitForPlayer();
+    },
+
+    waitForPlayer() {
+        const interval = setInterval(() => {
+            this.videoElement = document.querySelector('video');
+            if (this.videoElement) {
+                clearInterval(interval);
+                this.startSubtitleObserver();
+            }
+        }, 500);
+    },
+
+    // Observar cambios en subtítulos nativos de YouTube
+    startSubtitleObserver() {
+        this.observer = new MutationObserver(() => {
+            const nativeSubtitle = document.querySelector('.ytp-caption-segment');
+            
+            if (nativeSubtitle && nativeSubtitle.textContent.trim()) {
+                const text = nativeSubtitle.textContent.trim();
+                this.showStaticSubtitle(text);
+            } else {
+                this.hideStaticSubtitle();
+            }
+        });
+
+        const target = document.querySelector('#movie_player') || document.body;
+        this.observer.observe(target, { 
+            childList: true, 
+            subtree: true,
+            characterData: true 
+        });
+
+        // Check inicial
+        const initialSubtitle = document.querySelector('.ytp-caption-segment');
+        if (initialSubtitle?.textContent.trim()) {
+            this.showStaticSubtitle(initialSubtitle.textContent.trim());
         }
-        
-        console.log('🖱️ Subtitle clicked, final text:', text);
-  
-        if (text && text.length > 0) {
-          // Mark that we're handling this click
-          window.youtubeSubtitleClickHandled = true;
-          
-          ParlaPopup.show(e.clientX, e.clientY, text, 'YouTube');
-          
-          // Reset flag after delay
-          setTimeout(() => {
-            window.youtubeSubtitleClickHandled = false;
-          }, 500);
-        } else {
-          console.warn('⚠️ No text found in subtitle');
+    },
+
+    cleanup() {
+        if (this.observer) {
+            this.observer.disconnect();
+            this.observer = null;
         }
-      }, 100); // Small delay to let selection stabilize
+        if (this.subtitleContainer) {
+            this.subtitleContainer.remove();
+            this.subtitleContainer = null;
+        }
     }
-  };
-  
-  // Expose ParlaYouTube globally
-  window.ParlaYouTube = ParlaYouTube;
-  
-  // Debugging function
-  window.debugYouTubeSubtitles = function() {
-    console.log('🐛 DEBUG: Searching for subtitles...');
-    
-    const selectors = {
-      'Video': 'video',
-      'Caption Window': '.caption-window',
-      'YTP Caption Segment': '.ytp-caption-segment',
-      'Captions Text': '.captions-text',
-      'YTP Caption Container': '.ytp-caption-window-container',
-      'Movie Player': '#movie_player'
-    };
-    
-    Object.entries(selectors).forEach(([name, selector]) => {
-      const elements = document.querySelectorAll(selector);
-      console.log(`${name} (${selector}): ${elements.length} found`);
-      
-      if (elements.length > 0) {
-        console.log('  First element:', elements[0]);
-        if (elements[0].textContent) {
-          console.log('  Text:', elements[0].textContent.substring(0, 50));
-        }
-      }
-    });
-    
-    console.log('\n📊 Current State:');
-    console.log('  videoElement:', ParlaYouTube.videoElement);
-    console.log('  isExtensionActive:', ParlaSettings.isExtensionActive);
-    console.log('  parlaYTObserverActive:', window.parlaYTObserverActive);
-    console.log('  lastClickTime:', ParlaYouTube.lastClickTime);
-  };
-  
-  console.log('✅ ParlaYouTube module loaded - debugYouTubeSubtitles() available');
+};
+
+// Configuración inicial
+if (typeof ParlaSettings !== 'undefined') {
+    ParlaSettings.quickSelectMode = true;
+}
+
+window.ParlaYouTube = ParlaYouTube;
+
+window.toggleQuickSelectMode = function() {
+    if (typeof ParlaSettings !== 'undefined') {
+        ParlaSettings.quickSelectMode = !ParlaSettings.quickSelectMode;
+        return ParlaSettings.quickSelectMode;
+    }
+    return false;
+};
+
