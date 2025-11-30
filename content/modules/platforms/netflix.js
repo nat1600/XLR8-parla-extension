@@ -1,6 +1,5 @@
 // modules/platforms/netflix.js
 
-
 const ParlaNetflix = {
     videoElement: null,
     observer: null,
@@ -18,7 +17,7 @@ const ParlaNetflix = {
         style.innerHTML = `
 
             /* ===========================================
-               GLOBAL FIX — ALLOW TEXT SELECTION ON NETFLIX
+               GLOBAL FIX — ALLOW TEXT SELECTION
                =========================================== */
 
             body, html, div, span, p, section, article, * {
@@ -28,14 +27,17 @@ const ParlaNetflix = {
                 user-select: text !important;
             }
 
-            /* Netflix blocks selection in multiple layers */
-            .player-timedtext, 
-            .player-timedtext-container, 
-            .player-timedtext-text-container,
+            /* Netflix overlays — disable blocking layers */
             .player-overlay,
-            .ltr-1st24vp {
+            .ltr-1st24vp,
+            .player-timedtext,
+            .player-timedtext-container,
+            .player-timedtext-text-container,
+            .nf-player-theme,
+            .nf-player-container {
                 -webkit-user-select: text !important;
                 user-select: text !important;
+                pointer-events: none !important; /* 🔥 FIX CLAVE */
             }
 
             /* ===========================================
@@ -61,7 +63,8 @@ const ParlaNetflix = {
                 width: fit-content !important;
 
                 z-index: 2147483645 !important;
-                pointer-events: auto !important;
+
+                pointer-events: auto !important;  /* 🔥 VERY IMPORTANT */
 
                 display: none !important;
                 justify-content: center !important;
@@ -93,8 +96,7 @@ const ParlaNetflix = {
                 justify-content: center !important;
             }
 
-            /* Each selectable word */
-            #parla-netflix-static-container .subtitle-word {
+            .subtitle-word {
                 display: inline-block !important;
                 padding: 4px 8px !important;
                 border-radius: 6px !important;
@@ -103,38 +105,30 @@ const ParlaNetflix = {
                 transition: all 0.18s ease !important;
             }
 
-            #parla-netflix-static-container .subtitle-word:hover {
+            .subtitle-word:hover {
                 background: rgba(74, 144, 226, 0.25) !important;
                 transform: translateY(-1px) !important;
                 box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3) !important;
             }
 
-            #parla-netflix-static-container .subtitle-word:active {
+            .subtitle-word:active {
                 transform: translateY(0) !important;
                 background: rgba(74, 144, 226, 0.35) !important;
             }
 
-            /* Text selection highlight */
+            /* Selection highlight */
             #parla-netflix-static-container *::selection {
                 background: rgba(74, 144, 226, 0.85) !important;
                 color: white !important;
-            }
-
-            /* Hide original subtitles */
-            .player-timedtext,
-            .player-timedtext-container,
-            .player-timedtext-text-container {
-                display: none !important;
-                opacity: 0 !important;
-                pointer-events: none !important;
             }
         `;
 
         document.head.appendChild(style);
 
-        /* Reapply selection in case Netflix tries to overwrite it */
+        /* Re-apply selection in case Netflix overwrites styles */
         setInterval(() => {
-            document.querySelectorAll("#parla-netflix-static-container, #parla-netflix-static-container *")
+            document
+                .querySelectorAll("#parla-netflix-static-container, #parla-netflix-static-container *")
                 .forEach(el => {
                     el.style.userSelect = "text";
                     el.style.webkitUserSelect = "text";
@@ -156,7 +150,7 @@ const ParlaNetflix = {
     },
 
     // ---------------------------
-    // 3. Process subtitles into words
+    // 3. Format subtitle text into selectable words
     // ---------------------------
     formatWords(text) {
         return text
@@ -260,7 +254,7 @@ const ParlaNetflix = {
     // 8. Setup
     // ---------------------------
     setup() {
-  
+
         this.injectCSS();
 
         const interval = setInterval(() => {

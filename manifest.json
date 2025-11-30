@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Parla - Aprende idiomas mientras navegas",
   "version": "1.0.0",
-  "description": "Traduce y guarda frases de YouTube, Netflix, PDFs y páginas web. Aprende idiomas de forma natural mientras navegas.",
+  "description": "Traduce y guarda frases de YouTube, Netflix, PDFs y páginas web.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -22,6 +22,14 @@
   "background": {
     "service_worker": "utils/background.js"
   },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*"
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -39,9 +47,5 @@
       "css": ["content/content.css"],
       "run_at": "document_end"
     }
-  ],
-  "permissions": [
-    "storage",
-    "activeTab"
   ]
 }
