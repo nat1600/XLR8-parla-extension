@@ -388,14 +388,8 @@ function handleTextSelection(e) {
   }
   
   const selection = window.getSelection();
-  //const text = selection.toString().trim();
-  let text = selection.toString()
-    .replace(/\r/g, "")
-    .replace(/\n+/g, "\n")                 // Keep single newlines
-    .replace(/([a-zA-Z0-9])\n([A-Z])/g, "$1 \n$2") // Space after newline if needed
-    .trim();
-
-
+  const text = selection.toString().trim();
+  
   console.log('📝 Text selected:', text);
   
   if (text.length > 0) {

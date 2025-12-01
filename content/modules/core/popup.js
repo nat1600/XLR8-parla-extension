@@ -8,6 +8,23 @@ const ParlaPopup = (() => {
   let selectedText = '';
   let isShowing = false;
 
+  // Helper function to get the correct container for the popup
+  function getPopupContainer() {
+    // Check if we're in fullscreen mode
+    const fullscreenElement = document.fullscreenElement || 
+                              document.webkitFullscreenElement || 
+                              document.mozFullScreenElement ||
+                              document.msFullscreenElement;
+    
+    if (fullscreenElement) {
+      console.log('📺 Popup: Fullscreen mode detected, using fullscreen container');
+      return fullscreenElement;
+    }
+    
+    // Default to body
+    return document.body;
+  }
+
   // Singleton instance
   return {
     get floatingPopup() {
@@ -40,7 +57,7 @@ const ParlaPopup = (() => {
             </svg>
           </div>
           <span class="parla-popup-title">Parla</span>
-          <button class="parla-popup-close" id="parla-close">×</button>
+          <button class="parla-popup-close" id="parla-close">&times;</button>
         </div>
         
         <div class="parla-popup-content">
@@ -70,8 +87,15 @@ const ParlaPopup = (() => {
         </div>
       `;
       
-      document.body.appendChild(floatingPopup);
+      // 🔥 KEY FIX: Append to correct container (fullscreen or body)
+      const container = getPopupContainer();
+      container.appendChild(floatingPopup);
+      console.log('✅ Popup appended to:', container === document.body ? 'body' : 'fullscreen element');
+      
       this.position(x, y);
+      
+      // Setup listeners BEFORE showing (importante!)
+      this.setupEventListeners(context);
       
       // Small delay before showing
       requestAnimationFrame(() => {
@@ -79,8 +103,6 @@ const ParlaPopup = (() => {
           floatingPopup.classList.add('parla-popup-visible');
         }
       });
-      
-      this.setupEventListeners(context);
       
       const translationContainer = document.getElementById('parla-translation');
       if (translationContainer) {
@@ -142,30 +164,29 @@ const ParlaPopup = (() => {
     setupEventListeners(context) {
       if (!floatingPopup) return;
 
-      // CRITICAL: Stop ALL propagation on popup
-      const stopProp = (e) => {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      };
-
-      floatingPopup.addEventListener('mousedown', stopProp, true);
-      floatingPopup.addEventListener('mouseup', stopProp, true);
-      floatingPopup.addEventListener('click', stopProp, true);
-
-      // Close button
+      // Close button - listener directo sin stopPropagation excesivo
       const closeBtn = document.getElementById('parla-close');
       if (closeBtn) {
         closeBtn.addEventListener('click', (e) => {
-          stopProp(e);
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🔴 Close button clicked');
           this.hide();
-        });
+        }, { capture: false });
+        
+        // Backup: también con mousedown
+        closeBtn.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }, { capture: false });
       }
 
       // Save button
       const saveButton = document.getElementById('parla-save');
       if (saveButton) {
         saveButton.addEventListener('click', async (e) => {
-          stopProp(e);
+          e.preventDefault();
+          e.stopPropagation();
           
           if (saveButton.disabled) return;
           saveButton.disabled = true;
@@ -184,14 +205,15 @@ const ParlaPopup = (() => {
             saveButton.disabled = false;
             saveButton.style.opacity = '1';
           }, 1000);
-        });
+        }, { capture: false });
       }
 
       // Speak button
       const speakButton = document.getElementById('parla-speak');
       if (speakButton) {
         speakButton.addEventListener('click', (e) => {
-          stopProp(e);
+          e.preventDefault();
+          e.stopPropagation();
 
           if (speakButton.disabled) return;
           speakButton.disabled = true;
@@ -203,8 +225,24 @@ const ParlaPopup = (() => {
             speakButton.disabled = false;
             speakButton.style.opacity = '1';
           }, 1500);
-        });
+        }, { capture: false });
       }
+
+      // Avoid popup closure on drag or other interactions
+      floatingPopup.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+      }, { capture: true });
+
+      floatingPopup.addEventListener('mouseup', (e) => {
+        e.stopPropagation();
+      }, { capture: true });
+
+      floatingPopup.addEventListener('click', (e) => {
+        // Only detect clicks outside the close button
+        if (!e.target.closest('#parla-close')) {
+          e.stopPropagation();
+        }
+      }, { capture: true });
     }
   };
 })();
