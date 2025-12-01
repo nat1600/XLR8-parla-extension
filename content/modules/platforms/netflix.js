@@ -145,7 +145,12 @@ const ParlaNetflix = {
 
         c = document.createElement("div");
         c.id = "parla-netflix-static-container";
-        document.body.appendChild(c);
+        //document.body.appendChild(c);
+        const videoUI = document.querySelector(".watch-video, .nf-player-container, .player-video-wrapper")
+            || document.body;
+
+        videoUI.appendChild(c);
+
         return c;
     },
 
@@ -153,12 +158,19 @@ const ParlaNetflix = {
     // 3. Format subtitle text into selectable words
     // ---------------------------
     formatWords(text) {
-        return text
+    return text
+        .replace(/\n+/g, "\n")             
+        .split(/\n/)                        // Divide by lines
+        .map(line =>
+            line
             .trim()
-            .split(/\s+/)
+            .split(/ +/)                   // just divide by spaces
             .map(w => `<span class="subtitle-word">${w}</span>`)
-            .join(" ");
+            .join(" ")
+            )
+            .join("<br>"); 
     },
+    
 
     // ---------------------------
     // 4. Show subtitle
@@ -225,8 +237,35 @@ const ParlaNetflix = {
         }, 250);
     },
 
+
+
     // ---------------------------
-    // 7. Observe subtitle changes
+    // 7. Extract Netflix subtitle text preserving <br>
+    // ---------------------------
+    netflixExtractTextWithLineBreaks(el) {
+        // Clone the DOM in order to not modify the original
+        const clone = el.cloneNode(true);
+
+        // convert <br> in line breaks
+        clone.querySelectorAll("br").forEach(br => {
+            br.replaceWith("\n");
+        });
+
+        // Extract text
+        let text = clone.innerText || clone.textContent || "";
+
+        // Limpiezas necesarias
+        text = text
+            .replace(/\n+/g, "\n")    // Multiple \n to single \n
+            .replace(/\s+\n/g, "\n")  // NO spaces before \n
+            .replace(/\n\s+/g, "\n")  // no spaces after \n
+            .trim();
+
+        return text;
+    },
+
+    // ---------------------------
+    // 8. Observe subtitle changes
     // ---------------------------
     observeNetflixSubtitles() {
         const target = document.body;
@@ -236,7 +275,10 @@ const ParlaNetflix = {
 
             if (!el) return this.hideSubtitle();
 
-            const text = el.textContent.trim();
+            //const text = el.textContent.trim();
+            let text = this.netflixExtractTextWithLineBreaks(el);
+
+
             if (!text || text === this.lastText) return;
 
             this.lastText = text;
@@ -251,7 +293,7 @@ const ParlaNetflix = {
     },
 
     // ---------------------------
-    // 8. Setup
+    // 9. Setup
     // ---------------------------
     setup() {
 
