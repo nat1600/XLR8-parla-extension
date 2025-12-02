@@ -50,12 +50,88 @@ const userName = document.getElementById('user-name');
 const userEmail = document.getElementById('user-email');
 const savedCount = document.getElementById('saved-count');
 
+
+// Manages extension settings and state
+
+const ParlaSettings = {
+  isExtensionActive: true,
+  autoPauseEnabled: true,
+
+  // Load settings from chrome.storage
+  async load() {
+    try {
+      const result = await chrome.storage.local.get([
+        'parla_extension_active', 
+        'parla_auto_pause'
+      ]);
+      
+      this.isExtensionActive = result.parla_extension_active !== false;
+      this.autoPauseEnabled = result.parla_auto_pause !== false;
+      
+      console.log('⚙️ Settings loaded:', {
+        isExtensionActive: this.isExtensionActive,
+        autoPauseEnabled: this.autoPauseEnabled
+      });
+
+      //Update platform modules with initial state
+      this.updatePlatformModules(this.isExtensionActive);
+      
+    } catch (error) {
+      console.error('❌ Error loading settings:', error);
+      this.isExtensionActive = true;
+      this.autoPauseEnabled = true;
+    }
+  },
+
+  // Update platform-specific modules
+  updatePlatformModules(isActive) {
+    if (window.ParlaYouTube?.updateExtensionState) {
+      window.ParlaYouTube.updateExtensionState(isActive);
+    }
+    if (window.ParlaNetflix?.updateExtensionState) {
+      window.ParlaNetflix.updateExtensionState(isActive);
+    }
+    if (window.ParlaPDF?.updateExtensionState) {
+      window.ParlaPDF.updateExtensionState(isActive);
+    }
+  },
+
+  // Configure message listener for settings updates
+  setupMessageListener() {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      console.log('📩 Message received:', request);
+      
+      if (request.action === 'toggleExtension') {
+        this.isExtensionActive = request.active;
+        console.log('🔄 Extension toggled:', this.isExtensionActive);
+        
+        // Update platform modules
+        this.updatePlatformModules(this.isExtensionActive);
+        
+        if (!this.isExtensionActive && window.ParlaPopup) {
+          window.ParlaPopup.hide();
+        }
+      } else if (request.action === 'settingsUpdated') {
+        this.load();
+      }
+
+      sendResponse({ success: true });
+      return true;
+    });
+  }
+};
+
+// Expose ParlaSettings globally
+window.ParlaSettings = ParlaSettings;
+
+
+
 // ===========================
 // INITIALIZATION
 // ===========================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   loadUserData();
-  loadSettings();
+  await loadSettings();
   loadPhrases();
   initializeEventListeners();
   updateUI();
@@ -151,7 +227,7 @@ function updateUI() {
 // ===========================
 // TOGGLE EXTENSION
 // ===========================
-function toggleExtension(active) {
+async function toggleExtension(active) {
   isExtensionActive = active;
   
   // Sync both toggles
@@ -164,10 +240,8 @@ function toggleExtension(active) {
   const tutorialImg = document.querySelector('.tutorial-img');
   
   if (active) {
-    // Activando la extensión - transición suave
     mainContainer.classList.remove('extension-disabled');
     
-    // Cambiar imagen con delay para suavidad
     setTimeout(() => {
       if (tutorialImg) {
         tutorialImg.style.opacity = '0';
@@ -177,7 +251,6 @@ function toggleExtension(active) {
           tutorialImg.src = '/icons/chiguirohesitating.png';
           tutorialImg.alt = 'Chiguiro pensando';
           
-          // Fade in de la nueva imagen
           setTimeout(() => {
             tutorialImg.style.opacity = '1';
             tutorialImg.style.transform = 'scale(1)';
@@ -187,10 +260,8 @@ function toggleExtension(active) {
     }, 100);
     
   } else {
-    // Desactivando la extensión - transición suave
     mainContainer.classList.add('extension-disabled');
     
-    // Cambiar imagen con delay para suavidad
     setTimeout(() => {
       if (tutorialImg) {
         tutorialImg.style.opacity = '0';
@@ -200,7 +271,6 @@ function toggleExtension(active) {
           tutorialImg.src = '/icons/chiguirosleeping.png';
           tutorialImg.alt = 'Chiguiro durmiendo';
           
-          // Fade in de la nueva imagen
           setTimeout(() => {
             tutorialImg.style.opacity = '1';
             tutorialImg.style.transform = 'scale(1)';
@@ -212,10 +282,37 @@ function toggleExtension(active) {
   
   updateToggleStatus();
   
-  // Save to storage
-  localStorage.setItem('parla_extension_active', active);
+  //Save to chrome.storage.local (not localStorage)
+  try {
+    await chrome.storage.local.set({ 
+      'parla_extension_active': active 
+    });
+    console.log('✅ Extension state saved:', active);
+  } catch (error) {
+    console.error('❌ Error saving extension state:', error);
+  }
   
-  // Notificación con delay para no interrumpir la animación
+  // Send message to ALL tabs with content scripts
+  try {
+    const tabs = await chrome.tabs.query({});
+    
+    for (const tab of tabs) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          action: 'toggleExtension',
+          active: active
+        });
+        console.log(`✅ Message sent to tab ${tab.id}`);
+      } catch (err) {
+        // Tab might not have content script, ignore
+        console.log(`⚠️ Could not send to tab ${tab.id}:`, err.message);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error sending messages to tabs:', error);
+  }
+  
+  // Notification with delay
   setTimeout(() => {
     showNotification(active ? 'Extensión activada' : 'Extensión desactivada');
   }, 500);
@@ -387,34 +484,56 @@ function renderPhrases(filter = '') {
 // ===========================
 // SETTINGS
 // ===========================
-function loadSettings() {
-  const settings = {
-    //This section is getting commented in case we need to revert:
-    // targetLanguage: localStorage.getItem('parla_target_language') || 'es',
-    autoPause: localStorage.getItem('parla_auto_pause') !== 'false',
-    showPronunciation: localStorage.getItem('parla_show_pronunciation') !== 'false',
-    extensionActive: localStorage.getItem('parla_extension_active') !== 'false'
-  };
+async function loadSettings() {
+  try {
+    // Load from chrome.storage.local
+    const result = await chrome.storage.local.get([
+      'parla_extension_active',
+      'parla_auto_pause',
+      'parla_show_pronunciation'
+    ]);
+    
+    const settings = {
+      autoPause: result.parla_auto_pause !== false,
+      showPronunciation: result.parla_show_pronunciation !== false,
+      extensionActive: result.parla_extension_active !== false
+    };
 
-  // This section is getting commented in case we need to revert:
-  // targetLanguageSelect.value = settings.targetLanguage;
-  autoPauseCheckbox.checked = settings.autoPause;
-  showPronunciationCheckbox.checked = settings.showPronunciation;
-  extensionToggle.checked = settings.extensionActive;
-  if (extensionToggleMain) {
-    extensionToggleMain.checked = settings.extensionActive;
+    autoPauseCheckbox.checked = settings.autoPause;
+    showPronunciationCheckbox.checked = settings.showPronunciation;
+    extensionToggle.checked = settings.extensionActive;
+    if (extensionToggleMain) {
+      extensionToggleMain.checked = settings.extensionActive;
+    }
+    isExtensionActive = settings.extensionActive;
+    
+    console.log('✅ Settings loaded:', settings);
+  } catch (error) {
+    console.error('❌ Error loading settings:', error);
+    // Defaults
+    isExtensionActive = true;
+    autoPauseCheckbox.checked = true;
+    showPronunciationCheckbox.checked = true;
   }
-  isExtensionActive = settings.extensionActive;
 }
 
-function saveSettings() {
+
+async function saveSettings() {
   // This section is getting commented in case we need to revert:
   // localStorage.setItem('parla_target_language', targetLanguageSelect.value);
-  localStorage.setItem('parla_auto_pause', autoPauseCheckbox.checked);
-  localStorage.setItem('parla_show_pronunciation', showPronunciationCheckbox.checked);
-  
-  renderPhrases(searchInput.value);
+  try {
+    await chrome.storage.local.set({
+      'parla_auto_pause': autoPauseCheckbox.checked,
+      'parla_show_pronunciation': showPronunciationCheckbox.checked
+    });
+    
+    console.log('✅ Settings saved');
+    renderPhrases(searchInput.value);
+  } catch (error) {
+    console.error('❌ Error saving settings:', error);
+  }
 }
+
 
 // ===========================
 // EVENT LISTENERS

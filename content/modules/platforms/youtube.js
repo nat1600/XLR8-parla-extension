@@ -135,6 +135,18 @@ const ParlaYouTube = {
                 transform: translateY(0) !important;
                 background: rgba(74, 144, 226, 0.35) !important;
             }
+
+            /* Hide subtitles when extension is disabled */
+            body.parla-disabled #parla-static-subtitle-container {
+                display: none !important;
+            }
+
+            /* Show native YouTube subtitles when Parla is disabled */
+            body.parla-disabled .ytp-caption-window-container,
+            body.parla-disabled .caption-window,
+            body.parla-disabled .ytp-caption-segment {
+                display: block !important;
+            }
         `;
 
         document.head.appendChild(style);
@@ -233,10 +245,27 @@ const ParlaYouTube = {
         }, 300);
     },
 
+    //NEW: Update UI based on extension state
+    updateExtensionState(isActive) {
+        console.log('🎥 YouTube: Extension state changed to:', isActive);
+        
+        if (isActive) {
+            document.body.classList.remove('parla-disabled');
+        } else {
+            document.body.classList.add('parla-disabled');
+            this.hideStaticSubtitle();
+        }
+    },
+
     // Inicialización
     setup() {
         this.injectSubtitleCSS();
         this.subtitleContainer = this.createStaticContainer();
+
+        // Deactivate if extension is not active
+        if (!ParlaSettings?.isExtensionActive) {
+            document.body.classList.add('parla-disabled');
+        }
 
         document.addEventListener("selectionchange", () => {
             const s = window.getSelection().toString().trim();
@@ -259,6 +288,12 @@ const ParlaYouTube = {
     // Observar cambios en subtítulos nativos de YouTube
     startSubtitleObserver() {
         this.observer = new MutationObserver(() => {
+            // If extension is inactive, hide subtitles
+            if (!ParlaSettings?.isExtensionActive) {
+                this.hideStaticSubtitle();
+                return;
+            }
+
             const nativeSubtitle = document.querySelector('.ytp-caption-segment');
             
             if (nativeSubtitle && nativeSubtitle.textContent.trim()) {

@@ -37,7 +37,7 @@ const ParlaNetflix = {
             .nf-player-container {
                 -webkit-user-select: text !important;
                 user-select: text !important;
-                pointer-events: none !important; /* 🔥 FIX CLAVE */
+                pointer-events: none !important; 
             }
 
             /* ===========================================
@@ -64,7 +64,7 @@ const ParlaNetflix = {
 
                 z-index: 2147483645 !important;
 
-                pointer-events: auto !important;  /* 🔥 VERY IMPORTANT */
+                pointer-events: auto !important;
 
                 display: none !important;
                 justify-content: center !important;
@@ -121,6 +121,19 @@ const ParlaNetflix = {
                 background: rgba(74, 144, 226, 0.85) !important;
                 color: white !important;
             }
+        
+            /* Hide Parla subtitles when extension is disabled */
+            body.parla-disabled #parla-netflix-static-container {
+                display: none !important;
+            }
+
+            /* Show native Netflix subtitles when Parla is disabled */
+            body.parla-disabled .player-timedtext,
+            body.parla-disabled .player-timedtext-container,
+            body.parla-disabled .player-timedtext-text-container {
+                display: block !important;
+                pointer-events: auto !important;
+            }
         `;
 
         document.head.appendChild(style);
@@ -176,6 +189,13 @@ const ParlaNetflix = {
     // 4. Show subtitle
     // ---------------------------
     showSubtitle(text) {
+        
+        if (!ParlaSettings?.isExtensionActive) {
+            console.log('⏸️ Netflix: Extension disabled, not showing subtitle');
+            return;
+        }
+
+
         if (!this.staticContainer) this.staticContainer = this.createStaticContainer();
         this.staticContainer.innerHTML = `<div class="subtitle-text">${this.formatWords(text)}</div>`;
         this.staticContainer.classList.add("active");
@@ -271,6 +291,12 @@ const ParlaNetflix = {
         const target = document.body;
 
         this.observer = new MutationObserver(() => {
+            
+            if (!ParlaSettings?.isExtensionActive) {
+                this.hideSubtitle();
+                return;
+            }
+
             const el = document.querySelector(".player-timedtext-text-container");
 
             if (!el) return this.hideSubtitle();
@@ -292,12 +318,28 @@ const ParlaNetflix = {
         });
     },
 
+    updateExtensionState(isActive) {
+        console.log('🎬 Netflix: Extension state changed to:', isActive);
+        
+        if (isActive) {
+            document.body.classList.remove('parla-disabled');
+        } else {
+            document.body.classList.add('parla-disabled');
+            this.hideSubtitle();
+        }
+    },
+
     // ---------------------------
     // 9. Setup
     // ---------------------------
     setup() {
 
         this.injectCSS();
+
+        // check if extension is inactive
+        if (!ParlaSettings?.isExtensionActive) {
+            document.body.classList.add('parla-disabled');
+        }
 
         const interval = setInterval(() => {
             this.videoElement = document.querySelector("video");
