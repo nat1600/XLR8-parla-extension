@@ -2,6 +2,14 @@
 
 // Main actions module for saving phrases and text-to-speech
 const ParlaActions = {
+
+  // Helper to safely build backend URL even if global helper is not injected
+  backendUrl(endpoint) {
+    const base = (typeof window !== 'undefined' && window.CONFIG && window.CONFIG.backend?.url)
+      ? window.CONFIG.backend.url
+      : 'http://localhost:8000';
+    return base + endpoint;
+  },
     
   // Save selected phrase with translation and context
   async savePhrase(selectedText, translationText, context) {
@@ -16,36 +24,30 @@ const ParlaActions = {
     };
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/phrases/translate/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(phrase)
+      // Envía mensaje al background para guardar la frase
+      chrome.runtime.sendMessage({
+        action: 'savePhrase',
+        phrase: phrase
+      }, (response) => {
+        if (response && response.success) {
+          const savedPhrase = response.savedPhrase;
+          console.log("✅ Phrase saved on server:", savedPhrase);
+          ParlaHelpers.showNotification("✓ Frase guardada en Parla");
+
+          // Notify popup if open
+          chrome.runtime.sendMessage({ 
+            action: 'phraseAdded',
+            phrase: savedPhrase
+          }).catch(() => console.log('Popup not open'));
+
+          if (window.ParlaPopup) {
+            window.ParlaPopup.hide();
+          }
+        } else {
+          console.error(" API error:", response?.error);
+          ParlaHelpers.showNotification("❌ Error al guardar en servidor");
+        }
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(" API error:", errorData);
-        ParlaHelpers.showNotification("❌ Error al guardar en servidor");
-        return;
-      }
-
-      const savedPhrase = await response.json();
-      console.log("✅ Phrase saved on server:", savedPhrase);
-
-      ParlaHelpers.showNotification("✓ Frase guardada en Parla");
-
-      // Notify popup if open
-      chrome.runtime.sendMessage({ 
-        action: 'phraseAdded',
-        phrase: savedPhrase
-      }).catch(() => console.log('Popup not open'));
-
-      if (window.ParlaPopup) {
-        window.ParlaPopup.hide();
-      }
-
     } catch (error) {
       console.error(" Error saving phrase:", error);
       ParlaHelpers.showNotification(" No se pudo conectar al servidor");
