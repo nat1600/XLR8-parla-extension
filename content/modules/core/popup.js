@@ -229,20 +229,27 @@ const ParlaPopup = (() => {
       }
 
       // Avoid popup closure on drag or other interactions
+      // Use capture:false to let button listeners fire first
       floatingPopup.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
-      }, { capture: true });
-
-      floatingPopup.addEventListener('mouseup', (e) => {
-        e.stopPropagation();
-      }, { capture: true });
-
-      floatingPopup.addEventListener('click', (e) => {
-        // Only detect clicks outside the close button
-        if (!e.target.closest('#parla-close')) {
+        // Don't stop propagation for interactive elements
+        if (!e.target.closest('button, input, textarea, select')) {
           e.stopPropagation();
         }
-      }, { capture: true });
+      }, { capture: false });
+
+      floatingPopup.addEventListener('mouseup', (e) => {
+        // Don't stop propagation for interactive elements
+        if (!e.target.closest('button, input, textarea, select')) {
+          e.stopPropagation();
+        }
+      }, { capture: false });
+
+      floatingPopup.addEventListener('click', (e) => {
+        // Only stop propagation for non-interactive elements
+        if (!e.target.closest('button, input, textarea, select')) {
+          e.stopPropagation();
+        }
+      }, { capture: false });
     }
   };
 })();

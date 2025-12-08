@@ -12,14 +12,16 @@ const ParlaActions = {
   },
     
   // Save selected phrase with translation and context
-  async savePhrase(selectedText, translationText, context) {
+  async savePhrase(selectedText, translationText, context, sourceLanguageId = 1, targetLanguageId = 2) {
     console.log('Saving phrase ...');
 
     const phrase = {
-      original: selectedText,
-      translation: translationText,
-      context: context || "",
+      original_text: selectedText,
+      translated_text: translationText,
+      source_language: sourceLanguageId,
+      target_language: targetLanguageId,
       source_url: window.location.href,
+      source_type: context.toLocaleLowerCase(),
       pronunciation: ""
     };
 
@@ -31,7 +33,6 @@ const ParlaActions = {
       }, (response) => {
         if (response && response.success) {
           const savedPhrase = response.savedPhrase;
-          console.log("✅ Phrase saved on server:", savedPhrase);
           ParlaHelpers.showNotification("✓ Frase guardada en Parla");
 
           // Notify popup if open

@@ -10,6 +10,7 @@ const CONFIG = {
     endpoints: {
       profile: '/api/users/profile/',
       translate: '/api/phrases/translate/',
+      phrases: '/api/phrases/phrases/',
     }
   },
   

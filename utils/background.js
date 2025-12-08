@@ -46,7 +46,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 	if (request.action === 'savePhrase') {
 		const phrasesEndpoint = (typeof CONFIG !== 'undefined' && CONFIG.backend?.endpoints?.phrases)
 			? CONFIG.backend.endpoints.phrases
-			: '/api/phrases/';
+			: '/api/phrases/phrases/';
 
 		callBackendApi(phrasesEndpoint, 'POST', request.phrase)
 			.then(data => {
