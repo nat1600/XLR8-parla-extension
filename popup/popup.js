@@ -130,8 +130,8 @@ window.ParlaSettings = ParlaSettings;
 // INITIALIZATION
 // ===========================
 document.addEventListener('DOMContentLoaded', async () => {
-  loadUserData();
   await loadSettings();
+  await verifyBackendAuth();
   loadPhrases();
   initializeEventListeners();
   updateUI();
@@ -140,28 +140,83 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ===========================
 // AUTH FUNCTIONS
 // ===========================
-function loadUserData() {
-  // Simulación: Cargar usuario desde storage
-  const storedUser = localStorage.getItem('parla_user');
-  if (storedUser) {
-    currentUser = JSON.parse(storedUser);
+
+/**
+ * Verifies if the user has a valid session by checking the backend
+ * with credentials: include to validate the cookie
+ */
+async function verifyBackendAuth() {
+  try {
+    const profileUrl = getBackendUrl(CONFIG.backend.endpoints.profile);
+    
+    const response = await fetch(profileUrl, {
+      method: 'GET',
+      credentials: 'include', // Send cookies with the request
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (response.ok) {
+      const userData = await response.json();
+      currentUser = {
+        name: userData.name || userData.first_name || 'Usuario',
+        email: userData.email,
+        uid: userData.id,
+        photoURL: userData.photo_url || null
+      };
+      
+      // Save to localStorage for quick access
+      localStorage.setItem('parla_user', JSON.stringify(currentUser));
+      
+      if (CONFIG.extension.debugMode) {
+        console.log('✅ User authenticated via backend cookie:', currentUser);
+      }
+      return true;
+    } else if (response.status === 401 || response.status === 403) {
+      // Cookie is invalid or expired
+      if (CONFIG.extension.debugMode) {
+        console.log('⚠️ Backend session invalid or expired');
+      }
+      currentUser = null;
+      localStorage.removeItem('parla_user');
+      return false;
+    }
+  } catch (error) {
+    if (CONFIG.extension.debugMode) {
+      console.error('❌ Error verifying backend auth:', error);
+    }
+    currentUser = null;
+    localStorage.removeItem('parla_user');
+    return false;
   }
 }
 
 function handleGoogleAuth() {
-  // Simulación de autenticación con Google
-  const demoUser = {
-    name: 'Usuario Demo',
-    email: 'demo@parla.com',
-    photoURL: null,
-    uid: 'demo-uid-' + Date.now()
-  };
+  // Redirect to frontend login page where Google OAuth is handled
+  const loginUrl = getFrontendUrl(CONFIG.frontend.pages.login);
   
-  currentUser = demoUser;
-  localStorage.setItem('parla_user', JSON.stringify(demoUser));
+  window.open(loginUrl, '_blank');
   
-  updateUI();
-  showNotification('¡Bienvenido a Parla!');
+  showNotification('Abriendo página de login...');
+  
+  // Check for cookie every N seconds for up to N*attempts seconds
+  let attempts = 0;
+  const checkInterval = setInterval(async () => {
+    attempts++;
+    
+    if (attempts > CONFIG.extension.authCheckAttempts) {
+      clearInterval(checkInterval);
+      return;
+    }
+    
+    const isAuthenticated = await verifyBackendAuth();
+    if (isAuthenticated) {
+      clearInterval(checkInterval);
+      updateUI();
+      showNotification('¡Sesión iniciada correctamente!');
+    }
+  }, CONFIG.extension.authCheckInterval);
 }
 
 function handleLogout() {
