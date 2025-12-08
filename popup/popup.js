@@ -399,7 +399,7 @@ function updateToggleStatus() {
 // ===========================
 function handleMySpaceClick() {
   // Redirect to external website
-  const url = 'https://www.nytimes.com/live/2025/10/27/weather/hurricane-melissa-jamaica';
+  const url = 'http://localhost:8080/dashboard';
   window.open(url, '_blank');
 }
 
