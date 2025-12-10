@@ -15,13 +15,20 @@ const ParlaActions = {
   async savePhrase(selectedText, translationText, context, sourceLanguageId = 1, targetLanguageId = 2) {
     console.log('Saving phrase ...');
 
+    // Determine source_type: youtube/netflix if context matches, otherwise 'web'
+    let sourceType = 'web';
+    const contextLower = context.toLocaleLowerCase();
+    if (contextLower === 'youtube' || contextLower === 'netflix') {
+      sourceType = contextLower;
+    }
+
     const phrase = {
       original_text: selectedText,
       translated_text: translationText,
       source_language: sourceLanguageId,
       target_language: targetLanguageId,
       source_url: window.location.href,
-      source_type: context.toLocaleLowerCase(),
+      source_type: sourceType,
       pronunciation: ""
     };
 
