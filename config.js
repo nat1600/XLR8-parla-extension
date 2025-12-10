@@ -6,7 +6,7 @@
 const CONFIG = {
   // Backend API configuration
   backend: {
-    url: 'http://localhost:8000',
+    url: 'https://xlr8-parla-backend-production.up.railway.app',
     endpoints: {
       profile: '/api/users/profile/',
       translate: '/api/phrases/translate/',
@@ -16,7 +16,7 @@ const CONFIG = {
   
   // Frontend configuration
   frontend: {
-    url: 'http://localhost:8080',
+    url: 'https://parla-frontend.vercel.app/',
     pages: {
       login: '/login',
       dashboard: '/dashboard',
