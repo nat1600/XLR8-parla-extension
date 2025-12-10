@@ -8,7 +8,7 @@
 function getBackendApiUrl(endpoint) {
 	const baseUrl = (typeof CONFIG !== 'undefined' && CONFIG.backend?.url)
 		? CONFIG.backend.url
-		: 'http://localhost:8000';
+		: 'https://xlr8-parla-backend-production.up.railway.app';
 	return baseUrl + endpoint;
 }
 

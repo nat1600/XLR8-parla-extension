@@ -7,7 +7,7 @@ const ParlaActions = {
   backendUrl(endpoint) {
     const base = (typeof window !== 'undefined' && window.CONFIG && window.CONFIG.backend?.url)
       ? window.CONFIG.backend.url
-      : 'http://localhost:8000';
+      : 'https://xlr8-parla-backend-production.up.railway.app';
     return base + endpoint;
   },
     

@@ -399,7 +399,7 @@ function updateToggleStatus() {
 // ===========================
 function handleMySpaceClick() {
   // Redirect to external website
-  const url = 'http://localhost:8080/dashboard';
+  const url = 'https://parla-frontend.vercel.app/dashboard';
   window.open(url, '_blank');
 }
 
